@@ -1,10 +1,13 @@
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
 import { supabase } from '@/lib/supabase'
 
 export default async function AdminPage() {
   const { data, error } = await supabase
-    .from('submissions')
-    .select('*')
-    .order('created_at', { ascending: false })
+  .from('submissions')
+  .select('*')
+  .order('created_at', { ascending: false })
+  .throwOnError()
 
   if (error) {
     return <div>Error loading data</div>
