@@ -15,5 +15,5 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Failed to update' }, { status: 500 })
   }
 
-  return NextResponse.redirect('http://localhost:3000/admin')
+  return NextResponse.redirect(new URL('/admin', req.url))
 }
