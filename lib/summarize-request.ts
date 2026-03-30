@@ -1,0 +1,62 @@
+const OPENAI_MODEL = process.env.OPENAI_SUMMARY_MODEL ?? 'gpt-4.1-mini'
+
+type OpenAIResponse = {
+  output_text?: string
+  output?: Array<{
+    content?: Array<{
+      type?: string
+      text?: string
+    }>
+  }>
+}
+
+function getFallbackSummaryFromOutput(data: OpenAIResponse): string {
+  const textFromOutput = data.output
+    ?.flatMap((item) => item.content ?? [])
+    .find((content) => content.type === 'output_text' && typeof content.text === 'string')
+    ?.text
+
+  return textFromOutput?.trim() ?? ''
+}
+
+export async function summarizeRequest(requestText: string): Promise<string | null> {
+  const apiKey = process.env.OPENAI_API_KEY
+  const inputText = requestText.trim()
+
+  if (!apiKey || !inputText) {
+    return null
+  }
+
+  const response = await fetch('https://api.openai.com/v1/responses', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: OPENAI_MODEL,
+      max_output_tokens: 80,
+      input: [
+        {
+          role: 'system',
+          content:
+            'Write a concise summary of the user request in 1 sentence. Keep it practical and under 30 words.',
+        },
+        {
+          role: 'user',
+          content: inputText,
+        },
+      ],
+    }),
+  })
+
+  if (!response.ok) {
+    const details = await response.text()
+    throw new Error(`OpenAI summary failed (${response.status}): ${details}`)
+  }
+
+  const data = (await response.json()) as OpenAIResponse
+  const summary = data.output_text?.trim() || getFallbackSummaryFromOutput(data)
+
+  return summary || null
+}

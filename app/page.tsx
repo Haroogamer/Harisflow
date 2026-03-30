@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { FormEvent, useState } from "react";
 
 export default function Home() {
   const [form, setForm] = useState({
@@ -8,13 +8,21 @@ export default function Home() {
     request: "",
   });
 
-  const handleSubmit = async (e: any) => {
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    await fetch("/api/submit", {
+    const response = await fetch("/api/submit", {
       method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
       body: JSON.stringify(form),
     });
+
+    if (!response.ok) {
+      alert("Failed to submit. Please try again.");
+      return;
+    }
 
     alert("Submitted!");
   };

@@ -29,6 +29,7 @@ export default async function AdminPage() {
           <p><strong>Name:</strong> {item.name}</p>
           <p><strong>Email:</strong> {item.email}</p>
           <p><strong>Request:</strong> {item.request}</p>
+          <p><strong>Summary:</strong> {item.summary ?? 'No summary'}</p>
           <p><strong>Status:</strong> {item.status}</p>
 
           <form action="/api/update-status" method="POST">
