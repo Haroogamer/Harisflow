@@ -40,11 +40,11 @@ export async function summarizeRequest(requestText: string): Promise<string | nu
         {
           role: 'system',
           content:
-            'Write a concise summary of the user request in 1 sentence. Keep it practical and under 30 words.',
+            'You are an assistant that summarizes user requests clearly and concisely.',
         },
         {
           role: 'user',
-          content: inputText,
+          content:  "Summarize the following request in ONE clear sentence. Do not ask questions. Do not add suggestions. Only describe what the user needs.\n\nRequest:"+inputText,
         },
       ],
     }),
