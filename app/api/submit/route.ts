@@ -64,11 +64,13 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
 
-  const request = body.request?.trim() ?? ''
+  const request = body.request
 
-  if (!request) {
+  if (!request || typeof request !== 'string' || !request.trim()) {
     return NextResponse.json({ error: 'Request is required' }, { status: 400 })
   }
+
+  console.log('Incoming request:', request)
 
   let parsedAIResponse: AIResponse
   try {

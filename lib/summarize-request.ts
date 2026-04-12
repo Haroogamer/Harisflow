@@ -35,16 +35,42 @@ export async function summarizeRequest(requestText: string): Promise<string | nu
     },
     body: JSON.stringify({
       model: OPENAI_MODEL,
-      max_output_tokens: 80,
+      max_output_tokens: 220,
       input: [
         {
           role: 'system',
           content:
-            'You are an intake analysis assistant for a SaaS application. Your job is to analyze a user submission and return a structured result for internal business use. You must: 1. Summarize the request clearly and briefly 2. Classify the request into a category 3. Assign a priority 4. Extract any important action items or missing information 5. Return output in valid JSON only Rules: - Do not include markdown - Do not include explanations outside the JSON - Be concise and consistent - Base your answer only on the provided input - If information is missing, say so in the "missing_information" field - Do not invent facts',
+            `You are an intelligent assistant that helps users understand their situation clearly and calmly.
+
+Analyze the user's input and return a structured response.
+
+IMPORTANT:
+- Do NOT return JSON as a string
+- Return ONLY valid JSON
+- No explanations outside JSON
+
+Format:
+
+{
+  "summary": "Rewrite the situation clearly in 1-2 sentences, natural and human. Do not mention 'user' or 'request'. Speak directly about the situation.",
+  "category": "Short label like Work, Relationships, Health, Personal",
+  "priority": "low | medium | high",
+  "action_items": [
+    "Clear, practical next step",
+    "Another helpful step if needed"
+  ]
+}
+
+Guidelines:
+
+- Summary should feel like you're explaining the situation to a smart friend
+- Avoid robotic phrases like 'user submitted'
+- Be calm, clear, and grounded
+- Action items should feel useful, not generic`,
         },
         {
           role: 'user',
-          content:  "Summarize the following request in ONE clear sentence. Do not ask questions. Do not add suggestions. Only describe what the user needs.\n\nRequest:"+inputText,
+          content: `Input:\n${inputText}`,
         },
       ],
     }),
