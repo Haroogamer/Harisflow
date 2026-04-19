@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { isUserState, type AIResponse } from "@/lib/ai-response";
 import { toJsonBody } from "@/lib/to-json-body";
 
 const loadingMessages = [
@@ -8,12 +9,7 @@ const loadingMessages = [
   "Building a plan...",
 ];
 
-type ResultType = {
-  summary: string;
-  category: string;
-  priority: string;
-  action_items: string[];
-} | null;
+type ResultType = AIResponse | null;
 
 type ResultPayload = NonNullable<ResultType>;
 
@@ -24,14 +20,13 @@ function mapToResultType(data: unknown): ResultPayload | null {
     "summary" in data && typeof data.summary === "string"
       ? data.summary.trim()
       : "";
-  const category =
-    "category" in data && typeof data.category === "string"
-      ? data.category.trim()
-      : "";
-  const priority =
-    "priority" in data && typeof data.priority === "string"
-      ? data.priority.trim()
-      : "";
+  const keyPointsRaw = "key_points" in data ? data.key_points : [];
+  const key_points = Array.isArray(keyPointsRaw)
+    ? keyPointsRaw
+        .filter((item): item is string => typeof item === "string")
+        .map((item) => item.trim())
+        .filter(Boolean)
+    : [];
 
   const actionItemsRaw = "action_items" in data ? data.action_items : [];
   const action_items = Array.isArray(actionItemsRaw)
@@ -40,14 +35,17 @@ function mapToResultType(data: unknown): ResultPayload | null {
         .map((item) => item.trim())
         .filter(Boolean)
     : [];
+  const stateRaw = "state" in data ? data.state : null;
+  const state = isUserState(stateRaw) ? stateRaw : null;
 
-  if (!summary || !category || !priority) return null;
+  if (!summary || key_points.length < 2 || key_points.length > 3 || !state)
+    return null;
 
   return {
     summary,
-    category,
-    priority,
+    key_points,
     action_items,
+    state,
   };
 }
 
@@ -131,30 +129,16 @@ export default function Home() {
           "Content-Type": "application/json",
         },
         body: toJsonBody({
-          request: situation,
           summary: result.summary,
           action_items: result.action_items,
         }),
       });
 
-      const data: unknown = await response.json();
+      const message = (await response.text()).trim();
 
       if (!response.ok) {
         throw new Error("Failed to generate message");
       }
-
-      const message =
-        typeof data === "object" &&
-        data !== null &&
-        "message" in data &&
-        typeof data.message === "string"
-          ? data.message
-          : typeof data === "object" &&
-              data !== null &&
-              "text" in data &&
-              typeof data.text === "string"
-            ? data.text
-            : "";
 
       setGeneratedMessage(message);
     } catch (error) {
@@ -247,7 +231,7 @@ export default function Home() {
             Make sense of your situation
           </h1>
           <p className="text-sm text-neutral-400 text-center">
-            Write what's on your mind. We'll help you break it down.
+            Write what&apos;s on your mind. We&apos;ll help you break it down.
           </p>
         </div>
         <textarea
@@ -272,17 +256,18 @@ export default function Home() {
                 </span>
                 {result.summary}
               </p>
-              <p className="text-sm">
-                <span className="text-sm uppercase tracking-wide text-neutral-400 mb-2 block">
-                  What matters
-                </span>
-                <span className="inline-block px-3 py-1 rounded-full bg-neutral-800 text-sm mr-2">
-                  {result.category}
-                </span>
-                <span className="inline-block px-3 py-1 rounded-full bg-neutral-800 text-sm mr-2">
-                  {result.priority}
-                </span>
-              </p>
+              <div className="text-sm">
+                <p className="text-sm text-neutral-400">What matters</p>
+                {result.key_points.length > 0 ? (
+                  <ul className="list-disc pl-5 space-y-1 text-neutral-100">
+                    {result.key_points.map((point) => (
+                      <li key={point}>{point}</li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p>None</p>
+                )}
+              </div>
               <div className="text-sm bg-neutral-900 border border-neutral-800 rounded-2xl p-5">
                 <p className="text-sm uppercase tracking-wide text-neutral-400 mb-2">
                   What to do next

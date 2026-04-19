@@ -1,16 +1,10 @@
 import { NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { summarizeRequest } from '@/lib/summarize-request'
+import { isUserState, type AIResponse } from '@/lib/ai-response'
 
 type SubmitBody = {
   request?: string
-}
-
-type AIResponse = {
-  summary: string
-  category: string
-  priority: string
-  action_items: string[]
 }
 
 function parseAndValidateAIResponse(content: string): AIResponse {
@@ -29,13 +23,11 @@ function parseAndValidateAIResponse(content: string): AIResponse {
     typeof parsed.summary === 'string' && parsed.summary.trim()
       ? parsed.summary.trim()
       : null
-  const category =
-    typeof parsed.category === 'string' && parsed.category.trim()
-      ? parsed.category.trim()
-      : null
-  const priority =
-    typeof parsed.priority === 'string' && parsed.priority.trim()
-      ? parsed.priority.trim()
+  const keyPointsRaw = parsed.key_points
+  const keyPoints =
+    Array.isArray(keyPointsRaw) &&
+    keyPointsRaw.every((item) => typeof item === 'string')
+      ? keyPointsRaw.map((item) => item.trim()).filter(Boolean)
       : null
   const actionItemsRaw = parsed.action_items
   const actionItems =
@@ -43,16 +35,24 @@ function parseAndValidateAIResponse(content: string): AIResponse {
     actionItemsRaw.every((item) => typeof item === 'string')
       ? actionItemsRaw.map((item) => item.trim()).filter(Boolean)
       : null
+  const state = isUserState(parsed.state) ? parsed.state : null
 
-  if (!summary || !category || !priority || !actionItems) {
+  if (
+    !summary ||
+    !keyPoints ||
+    keyPoints.length < 2 ||
+    keyPoints.length > 3 ||
+    !actionItems ||
+    !state
+  ) {
     throw new Error('Invalid AI JSON response')
   }
 
   return {
     summary,
-    category,
-    priority,
+    key_points: keyPoints,
     action_items: actionItems,
+    state,
   }
 }
 

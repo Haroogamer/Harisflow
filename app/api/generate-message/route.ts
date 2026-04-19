@@ -1,9 +1,6 @@
-import { NextResponse } from 'next/server'
-
 const OPENAI_MODEL = process.env.OPENAI_MESSAGE_MODEL ?? 'gpt-4.1-mini'
 
 type GenerateMessageBody = {
-  request?: string
   summary?: string
   action_items?: string[]
 }
@@ -32,25 +29,21 @@ export async function POST(req: Request) {
   try {
     body = (await req.json()) as GenerateMessageBody
   } catch {
-    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+    return new Response('Invalid JSON body', { status: 400 })
   }
 
-  const requestText = body.request?.trim() ?? ''
   const summary = body.summary?.trim() ?? ''
   const actionItems = Array.isArray(body.action_items)
     ? body.action_items.filter((item): item is string => typeof item === 'string').map((item) => item.trim()).filter(Boolean)
     : null
 
-  if (!requestText || !summary || !actionItems) {
-    return NextResponse.json(
-      { error: 'request, summary, and action_items are required' },
-      { status: 400 },
-    )
+  if (!summary || !actionItems || actionItems.length === 0) {
+    return new Response('summary and action_items are required', { status: 400 })
   }
 
   const apiKey = process.env.OPENAI_API_KEY
   if (!apiKey) {
-    return NextResponse.json({ error: 'Server is not configured' }, { status: 500 })
+    return new Response('Server is not configured', { status: 500 })
   }
 
   try {
@@ -63,22 +56,27 @@ export async function POST(req: Request) {
       body: JSON.stringify({
         model: OPENAI_MODEL,
         max_output_tokens: 220,
+        text: {
+          format: {
+            type: 'text',
+          },
+        },
         input: [
           {
             role: 'system',
-            content:
-              'You write ready-to-send messages. Use a clear, calm, confident tone. Keep it concise and practical. Return only the message text with no markdown.',
+            content: `You are helping someone communicate clearly and confidently.
+
+Given the situation and next steps, write a message they can send.
+
+- Tone: natural, calm, human
+- Avoid robotic language
+- Be direct and clear
+- Do not mention AI
+- Output only the message`,
           },
           {
             role: 'user',
-            content: [
-              'Write a ready-to-send message based on this context:',
-              `Original request: ${requestText}`,
-              `Summary: ${summary}`,
-              actionItems.length > 0
-                ? `Action items: ${actionItems.map((item) => `- ${item}`).join(' ')}`
-                : 'Action items: none provided',
-            ].join('\n'),
+            content: `Situation:\n${summary}\n\nNext steps:\n${actionItems.map((item) => `- ${item}`).join('\n')}`,
           },
         ],
       }),
@@ -87,19 +85,24 @@ export async function POST(req: Request) {
     if (!response.ok) {
       const details = await response.text()
       console.error('OPENAI GENERATE MESSAGE ERROR:', details)
-      return NextResponse.json({ error: 'Failed to generate message' }, { status: 500 })
+      return new Response('Failed to generate message', { status: 500 })
     }
 
     const data = (await response.json()) as OpenAIResponse
     const message = data.output_text?.trim() || getFallbackTextFromOutput(data)
 
     if (!message) {
-      return NextResponse.json({ error: 'Failed to generate message' }, { status: 500 })
+      return new Response('Failed to generate message', { status: 500 })
     }
 
-    return NextResponse.json({ message })
+    return new Response(message, {
+      status: 200,
+      headers: {
+        'Content-Type': 'text/plain; charset=utf-8',
+      },
+    })
   } catch (error) {
     console.error('GENERATE MESSAGE ROUTE ERROR:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return new Response('Internal server error', { status: 500 })
   }
 }

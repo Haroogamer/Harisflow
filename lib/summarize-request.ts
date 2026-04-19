@@ -52,20 +52,43 @@ IMPORTANT:
 Format:
 
 {
-  "summary": "Rewrite the situation clearly in 1-2 sentences, natural and human. Do not mention 'user' or 'request'. Speak directly about the situation.",
-  "category": "Short label like Work, Relationships, Health, Personal",
-  "priority": "low | medium | high",
+  "summary": "Write a 1-2 sentence insight about the underlying tension or goal. Do not restate the user's idea directly. Sound natural and human, grounded and specific. Avoid robotic framing, generic filler, and phrases like 'you are dealing with'.",
+  "state": "Choose ONE dominant state: confused | overwhelmed | stuck | overthinking | avoidant",
+  "key_points": [
+    "Sharp observation on the core issue",
+    "Sharp observation on the main constraint",
+    "Sharp observation on the decision pressure"
+  ],
   "action_items": [
-    "Clear, practical next step",
-    "Another helpful step if needed"
+    "Specific, immediately executable next step",
+    "Another concrete step if needed"
   ]
 }
 
 Guidelines:
 
-- Summary should feel like you're explaining the situation to a smart friend
-- Avoid robotic phrases like 'user submitted'
-- Be calm, clear, and grounded
+- Summary should feel like a real person explaining the situation clearly
+- Style should be conversational but sharp
+- Keep summary concise and readable (1-2 sentences max)
+- Avoid robotic phrases like 'user submitted' or 'you are dealing with'
+- Avoid generic framing and vague language
+- Do not mirror or paraphrase the user's wording line-by-line
+- Focus the summary on the underlying tension, tradeoff, or goal
+- Make it feel like insight, not description
+- Be calm, clear, grounded, and specific
+- state must be exactly one value from: confused, overwhelmed, stuck, overthinking, avoidant
+- Choose only ONE dominant state
+- State should reflect the user's internal situation (how they are mentally/emotionally approaching the problem), not the topic itself
+- key_points must be 2-3 short, concrete bullets that explain:
+  1) the core issue, 2) the main constraint, 3) the decision pressure
+- Write each key point like a sharp observation, not a label
+- Avoid templated phrases like 'the core challenge is'
+- Keep key_points short, punchy, and specific
+- Each key point should surface something the user likely hasn't fully named yet
+- Action items must be specific and concrete
+- Each action item should be immediately executable
+- Avoid generic advice like 'research' or 'consider'
+- Prefer clear verbs and real-world steps over abstract suggestions
 - Action items should feel useful, not generic`,
         },
         {
