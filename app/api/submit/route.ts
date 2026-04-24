@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { summarizeRequest } from '@/lib/summarize-request'
-import { isUserState, type AIResponse } from '@/lib/ai-response'
+import { type AIResponse } from '@/lib/ai-response'
 
 type SubmitBody = {
   request?: string
@@ -19,40 +19,44 @@ function parseAndValidateAIResponse(content: string): AIResponse {
     throw new Error('Invalid AI JSON response')
   }
 
-  const summary =
-    typeof parsed.summary === 'string' && parsed.summary.trim()
-      ? parsed.summary.trim()
+  const goal =
+    typeof parsed.goal === 'string' && parsed.goal.trim()
+      ? parsed.goal.trim()
       : null
-  const keyPointsRaw = parsed.key_points
-  const keyPoints =
-    Array.isArray(keyPointsRaw) &&
-    keyPointsRaw.every((item) => typeof item === 'string')
-      ? keyPointsRaw.map((item) => item.trim()).filter(Boolean)
+  const constraintsRaw = parsed.constraints
+  const constraints =
+    Array.isArray(constraintsRaw) &&
+    constraintsRaw.every((item) => typeof item === 'string')
+      ? constraintsRaw.map((item) => item.trim()).filter(Boolean)
       : null
-  const actionItemsRaw = parsed.action_items
-  const actionItems =
-    Array.isArray(actionItemsRaw) &&
-    actionItemsRaw.every((item) => typeof item === 'string')
-      ? actionItemsRaw.map((item) => item.trim()).filter(Boolean)
+  const optionsRaw = parsed.options
+  const options =
+    Array.isArray(optionsRaw) &&
+    optionsRaw.every((item) => typeof item === 'string')
+      ? optionsRaw.map((item) => item.trim()).filter(Boolean)
       : null
-  const state = isUserState(parsed.state) ? parsed.state : null
+  const nextStep =
+    typeof parsed.next_step === 'string' && parsed.next_step.trim()
+      ? parsed.next_step.trim()
+      : null
 
   if (
-    !summary ||
-    !keyPoints ||
-    keyPoints.length < 2 ||
-    keyPoints.length > 3 ||
-    !actionItems ||
-    !state
+    !goal ||
+    !constraints ||
+    constraints.length === 0 ||
+    !options ||
+    options.length < 2 ||
+    options.length > 3 ||
+    !nextStep
   ) {
     throw new Error('Invalid AI JSON response')
   }
 
   return {
-    summary,
-    key_points: keyPoints,
-    action_items: actionItems,
-    state,
+    goal,
+    constraints,
+    options,
+    next_step: nextStep,
   }
 }
 
@@ -89,7 +93,7 @@ export async function POST(req: Request) {
         name: null,
         email: null,
         request,
-        summary: parsedAIResponse.summary,
+        summary: parsedAIResponse.goal,
         status: 'new',
       },
     ])

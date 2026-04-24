@@ -1,52 +1,68 @@
 "use client";
+
 import { useEffect, useState } from "react";
-import { isUserState, type AIResponse } from "@/lib/ai-response";
+import { type AIResponse } from "@/lib/ai-response";
 import { toJsonBody } from "@/lib/to-json-body";
 
 const loadingMessages = [
-  "Understanding your situation...",
-  "Identifying key issues...",
-  "Building a plan...",
+  "Reading input...",
+  "Identifying constraints...",
+  "Building options...",
 ];
 
 type ResultType = AIResponse | null;
 
 type ResultPayload = NonNullable<ResultType>;
 
+function getStringArray(data: unknown, key: "constraints" | "options") {
+  if (typeof data !== "object" || data === null || !(key in data)) return [];
+
+  const value = (data as Record<string, unknown>)[key];
+  return Array.isArray(value)
+    ? value
+        .filter((item): item is string => typeof item === "string")
+        .map((item) => item.trim())
+        .filter(Boolean)
+    : [];
+}
+
 function mapToResultType(data: unknown): ResultPayload | null {
   if (typeof data !== "object" || data === null) return null;
 
-  const summary =
-    "summary" in data && typeof data.summary === "string"
-      ? data.summary.trim()
+  const goal =
+    "goal" in data && typeof data.goal === "string" ? data.goal.trim() : "";
+  const constraints = getStringArray(data, "constraints");
+  const options = getStringArray(data, "options");
+  const next_step =
+    "next_step" in data && typeof data.next_step === "string"
+      ? data.next_step.trim()
       : "";
-  const keyPointsRaw = "key_points" in data ? data.key_points : [];
-  const key_points = Array.isArray(keyPointsRaw)
-    ? keyPointsRaw
-        .filter((item): item is string => typeof item === "string")
-        .map((item) => item.trim())
-        .filter(Boolean)
-    : [];
 
-  const actionItemsRaw = "action_items" in data ? data.action_items : [];
-  const action_items = Array.isArray(actionItemsRaw)
-    ? actionItemsRaw
-        .filter((item): item is string => typeof item === "string")
-        .map((item) => item.trim())
-        .filter(Boolean)
-    : [];
-  const stateRaw = "state" in data ? data.state : null;
-  const state = isUserState(stateRaw) ? stateRaw : null;
-
-  if (!summary || key_points.length < 2 || key_points.length > 3 || !state)
+  if (
+    !goal ||
+    constraints.length === 0 ||
+    options.length < 2 ||
+    options.length > 3 ||
+    !next_step
+  ) {
     return null;
+  }
 
   return {
-    summary,
-    key_points,
-    action_items,
-    state,
+    goal,
+    constraints,
+    options,
+    next_step,
   };
+}
+
+function getErrorMessage(data: unknown, fallback: string) {
+  return typeof data === "object" &&
+    data !== null &&
+    "error" in data &&
+    typeof data.error === "string"
+    ? data.error
+    : fallback;
 }
 
 export default function Home() {
@@ -54,12 +70,14 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [messageIndex, setMessageIndex] = useState(0);
   const [result, setResult] = useState<ResultType>(null);
+  const [showNextStep, setShowNextStep] = useState(false);
   const [showRefine, setShowRefine] = useState(false);
   const [refinement, setRefinement] = useState("");
   const [isUpdating, setIsUpdating] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedMessage, setGeneratedMessage] = useState("");
   const [copied, setCopied] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
 
   useEffect(() => {
     if (!isLoading) return;
@@ -76,7 +94,9 @@ export default function Home() {
   const handleStart = async () => {
     setMessageIndex(0);
     setResult(null);
+    setShowNextStep(false);
     setGeneratedMessage("");
+    setErrorMessage("");
     setIsLoading(true);
 
     try {
@@ -89,18 +109,10 @@ export default function Home() {
       });
 
       const data: unknown = await response.json();
+      console.log("API response:", data);
 
       if (!response.ok) {
-        const errorMessage =
-          typeof data === "object" &&
-          data !== null &&
-          "error" in data &&
-          typeof data.error === "string"
-            ? data.error
-            : "Request failed";
-        throw new Error(
-          errorMessage,
-        );
+        throw new Error(getErrorMessage(data, "Request failed"));
       }
 
       const mappedResult = mapToResultType(data);
@@ -111,6 +123,9 @@ export default function Home() {
       setResult(mappedResult);
     } catch (error) {
       console.error("Failed to submit request:", error);
+      setErrorMessage(
+        error instanceof Error ? error.message : "Failed to process request",
+      );
     } finally {
       setIsLoading(false);
     }
@@ -121,6 +136,7 @@ export default function Home() {
 
     setIsGenerating(true);
     setGeneratedMessage("");
+    setErrorMessage("");
 
     try {
       const response = await fetch("/api/generate-message", {
@@ -129,20 +145,23 @@ export default function Home() {
           "Content-Type": "application/json",
         },
         body: toJsonBody({
-          summary: result.summary,
-          action_items: result.action_items,
+          goal: result.goal,
+          next_step: result.next_step,
         }),
       });
 
       const message = (await response.text()).trim();
 
       if (!response.ok) {
-        throw new Error("Failed to generate message");
+        throw new Error(message || "Failed to generate message");
       }
 
       setGeneratedMessage(message);
     } catch (error) {
       console.error("Failed to generate message:", error);
+      setErrorMessage(
+        error instanceof Error ? error.message : "Failed to generate message",
+      );
     } finally {
       setIsGenerating(false);
     }
@@ -151,14 +170,17 @@ export default function Home() {
   const handleRefine = async () => {
     const originalInput = situation.trim();
     const refineInput = refinement.trim();
-    const combinedInput =
-      `${originalInput}\n\nAdditional context:\n${refineInput}`.trim();
+    const combinedInput = `${originalInput}\n\n${refineInput}`.trim();
 
-    if (!combinedInput) return;
+    if (!combinedInput || !refineInput) return;
+
+    const payload = { request: combinedInput };
+    console.log("Refine payload:", payload);
 
     setIsUpdating(true);
     setGeneratedMessage("");
     setCopied(false);
+    setErrorMessage("");
 
     try {
       const response = await fetch("/api/submit", {
@@ -166,22 +188,14 @@ export default function Home() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          request: combinedInput,
-        }),
+        body: toJsonBody(payload),
       });
 
       const data: unknown = await response.json();
+      console.log("API response:", data);
 
       if (!response.ok) {
-        const errorMessage =
-          typeof data === "object" &&
-          data !== null &&
-          "error" in data &&
-          typeof data.error === "string"
-            ? data.error
-            : "Request failed";
-        throw new Error(errorMessage);
+        throw new Error(getErrorMessage(data, "Request failed"));
       }
 
       const mappedResult = mapToResultType(data);
@@ -190,10 +204,14 @@ export default function Home() {
       }
 
       setResult(mappedResult);
+      setShowNextStep(false);
       setShowRefine(false);
       setRefinement("");
     } catch (error) {
       console.error("Failed to refine request:", error);
+      setErrorMessage(
+        error instanceof Error ? error.message : "Failed to refine request",
+      );
     } finally {
       setIsUpdating(false);
     }
@@ -210,134 +228,162 @@ export default function Home() {
       }, 2000);
     } catch (error) {
       console.error("Failed to copy message:", error);
+      setErrorMessage("Failed to copy message");
     }
   };
 
   if (isLoading) {
     return (
-      <main className="min-h-screen bg-neutral-950 text-white flex items-center justify-center">
-        <div className="w-full max-w-2xl px-6">
-          <p className="text-center text-xl">{loadingMessages[messageIndex]}</p>
-        </div>
+      <main className="min-h-screen bg-neutral-950 text-white flex items-center justify-center px-6">
+        <p className="text-center text-xl">{loadingMessages[messageIndex]}</p>
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-neutral-950 text-white flex items-center justify-center">
-      <div className="w-full max-w-2xl px-6 space-y-6">
+    <main className="min-h-screen bg-neutral-950 text-white flex items-start justify-center px-5 py-8 sm:items-center sm:px-6">
+      <div className="w-full max-w-2xl space-y-6">
         <div className="space-y-2">
-          <h1 className="text-3xl font-semibold text-center">
-            Make sense of your situation
+          <h1 className="text-center text-3xl font-semibold">
+            Decision breakdown
           </h1>
-          <p className="text-sm text-neutral-400 text-center">
-            Write what&apos;s on your mind. We&apos;ll help you break it down.
+          <p className="text-center text-sm text-neutral-400">
+            Enter the situation and get a structured decision view.
           </p>
         </div>
-        <textarea
-          value={situation}
-          onChange={(e) => setSituation(e.target.value)}
-          placeholder="I’m not sure what to do about..."
-          className="w-full min-h-[140px] rounded-2xl bg-neutral-900 border border-neutral-800 p-4 text-base placeholder:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-200"
-        />
-        <button
-          type="button"
-          onClick={handleStart}
-          className="px-6 py-3 rounded-xl bg-blue-600 text-white font-medium"
-        >
-          Make sense of it
-        </button>
+
+        <div>
+          <textarea
+            value={situation}
+            onChange={(e) => setSituation(e.target.value)}
+            placeholder="Describe the decision or problem..."
+            className="w-full min-h-[150px] rounded-2xl bg-neutral-900 border border-neutral-800 p-4 sm:p-5 text-base placeholder:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-200"
+          />
+          <button
+            type="button"
+            onClick={handleStart}
+            disabled={isLoading || !situation.trim()}
+            className="mt-4 w-full min-h-[48px] rounded-xl bg-blue-600 px-6 py-3 font-medium text-white disabled:opacity-60"
+          >
+            Break it down
+          </button>
+        </div>
+
+        {errorMessage && (
+          <p className="rounded-xl border border-red-900/60 bg-red-950/40 p-3 text-sm text-red-200">
+            {errorMessage}
+          </p>
+        )}
+
         {result && (
           <>
-            <section className="mt-8 space-y-4 bg-neutral-900 border border-neutral-800 rounded-2xl p-5">
-              <p className="text-base leading-relaxed text-white">
-                <span className="text-sm uppercase tracking-wide text-neutral-400 mb-2 block">
-                  What’s going on
-                </span>
-                {result.summary}
-              </p>
-              <div className="text-sm">
-                <p className="text-sm text-neutral-400">What matters</p>
-                {result.key_points.length > 0 ? (
-                  <ul className="list-disc pl-5 space-y-1 text-neutral-100">
-                    {result.key_points.map((point) => (
-                      <li key={point}>{point}</li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p>None</p>
-                )}
-              </div>
-              <div className="text-sm bg-neutral-900 border border-neutral-800 rounded-2xl p-5">
-                <p className="text-sm uppercase tracking-wide text-neutral-400 mb-2">
-                  What to do next
+            <section className="mt-8 space-y-5 rounded-2xl border border-neutral-800 bg-neutral-900 p-5">
+              <div className="space-y-2">
+                <h2 className="text-sm font-medium uppercase tracking-wide text-neutral-400">
+                  What you&apos;re trying to do
+                </h2>
+                <p className="text-base leading-relaxed text-white">
+                  {result.goal}
                 </p>
-                {result.action_items.length > 0 ? (
-                  <ul className="space-y-2">
-                    {result.action_items.map((item) => (
-                      <li
-                        key={item}
-                        className="bg-neutral-800 rounded-lg px-3 py-2 text-sm"
-                      >
-                        {item}
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p>None</p>
-                )}
               </div>
+
+              <div className="space-y-2">
+                <h2 className="text-sm font-medium uppercase tracking-wide text-neutral-400">
+                  What&apos;s limiting you
+                </h2>
+                <ul className="list-disc space-y-1 pl-5 text-sm text-neutral-100">
+                  {result.constraints.map((constraint) => (
+                    <li key={constraint}>{constraint}</li>
+                  ))}
+                </ul>
+              </div>
+
+              <div className="space-y-2">
+                <h2 className="text-sm font-medium uppercase tracking-wide text-neutral-400">
+                  Your options
+                </h2>
+                <ul className="list-disc space-y-1 pl-5 text-sm text-neutral-100">
+                  {result.options.map((option) => (
+                    <li key={option}>{option}</li>
+                  ))}
+                </ul>
+              </div>
+
+              {!showNextStep ? (
+                <button
+                  type="button"
+                  onClick={() => setShowNextStep(true)}
+                  className="w-full min-h-[48px] rounded-xl bg-blue-600 px-5 py-3 font-medium text-white"
+                >
+                  This is accurate
+                </button>
+              ) : (
+                <div className="space-y-2 border-t border-neutral-800 pt-5">
+                  <h2 className="text-sm font-medium uppercase tracking-wide text-neutral-400">
+                    What to do next
+                  </h2>
+                  <p className="text-base leading-relaxed text-white">
+                    {result.next_step}
+                  </p>
+                </div>
+              )}
             </section>
+
             <div className="space-y-4">
               <div className="space-y-3">
                 <button
                   type="button"
                   onClick={() => setShowRefine((current) => !current)}
-                  className="px-6 py-3 rounded-xl bg-neutral-800 text-white font-medium"
+                  className="w-full min-h-[48px] rounded-xl bg-neutral-800 px-6 py-3 font-medium text-white"
                 >
                   Refine this
                 </button>
+
                 {showRefine && (
                   <div className="space-y-3">
                     <textarea
                       value={refinement}
                       onChange={(e) => setRefinement(e.target.value)}
-                      placeholder="Add more context or clarify..."
-                      className="w-full min-h-[90px] rounded-xl bg-neutral-900 border border-neutral-800 p-3 text-sm placeholder:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="Add constraints, missing facts, or a correction..."
+                      className="w-full min-h-[110px] rounded-xl bg-neutral-900 border border-neutral-800 p-4 text-base placeholder:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                     <button
                       type="button"
                       onClick={handleRefine}
                       disabled={isUpdating || !refinement.trim()}
-                      className="px-4 py-2 rounded-lg bg-blue-600 text-sm text-white disabled:opacity-60"
+                      className="w-full min-h-[48px] rounded-lg bg-blue-600 px-4 py-2 text-sm text-white disabled:opacity-60"
                     >
                       {isUpdating ? "Updating..." : "Update"}
                     </button>
                   </div>
                 )}
               </div>
-              <button
-                type="button"
-                onClick={handleGenerateMessage}
-                disabled={isGenerating}
-                className="px-6 py-3 rounded-xl bg-neutral-800 text-white font-medium disabled:opacity-70"
-              >
-                {isGenerating ? "Writing..." : "Write this for me"}
-              </button>
+
+              {showNextStep && (
+                <button
+                  type="button"
+                  onClick={handleGenerateMessage}
+                  disabled={isGenerating}
+                  className="w-full min-h-[48px] rounded-xl bg-neutral-800 px-6 py-3 font-medium text-white disabled:opacity-70"
+                >
+                  {isGenerating ? "Writing..." : "Write this for me"}
+                </button>
+              )}
+
               {generatedMessage && (
-                <section className="space-y-3 bg-neutral-900 border border-neutral-800 rounded-2xl p-5">
+                <section className="space-y-3 rounded-2xl border border-neutral-800 bg-neutral-900 p-5">
                   <h2 className="text-lg font-semibold">Suggested message</h2>
-                  <p className="text-sm text-neutral-200 whitespace-pre-wrap">
+                  <p className="whitespace-pre-wrap text-sm text-neutral-200">
                     {generatedMessage}
                   </p>
                   <button
                     type="button"
                     onClick={handleCopyMessage}
-                    className={`px-4 py-2 rounded-lg text-sm text-white transition-all duration-200 ${
+                    className={`min-h-[44px] rounded-lg px-4 py-2 text-sm text-white transition-all duration-200 ${
                       copied ? "bg-green-600" : "bg-neutral-800"
                     }`}
                   >
-                    {copied ? "Copied ✓" : "Copy"}
+                    {copied ? "Copied" : "Copy"}
                   </button>
                 </section>
               )}

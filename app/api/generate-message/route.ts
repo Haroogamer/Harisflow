@@ -1,8 +1,8 @@
 const OPENAI_MODEL = process.env.OPENAI_MESSAGE_MODEL ?? 'gpt-4.1-mini'
 
 type GenerateMessageBody = {
-  summary?: string
-  action_items?: string[]
+  goal?: string
+  next_step?: string
 }
 
 type OpenAIResponse = {
@@ -32,13 +32,11 @@ export async function POST(req: Request) {
     return new Response('Invalid JSON body', { status: 400 })
   }
 
-  const summary = body.summary?.trim() ?? ''
-  const actionItems = Array.isArray(body.action_items)
-    ? body.action_items.filter((item): item is string => typeof item === 'string').map((item) => item.trim()).filter(Boolean)
-    : null
+  const goal = body.goal?.trim() ?? ''
+  const nextStep = body.next_step?.trim() ?? ''
 
-  if (!summary || !actionItems || actionItems.length === 0) {
-    return new Response('summary and action_items are required', { status: 400 })
+  if (!goal || !nextStep) {
+    return new Response('goal and next_step are required', { status: 400 })
   }
 
   const apiKey = process.env.OPENAI_API_KEY
@@ -64,19 +62,18 @@ export async function POST(req: Request) {
         input: [
           {
             role: 'system',
-            content: `You are helping someone communicate clearly and confidently.
+            content: `You are helping someone communicate clearly.
 
-Given the situation and next steps, write a message they can send.
+Given the goal and next step, write a message they can send.
 
-- Tone: natural, calm, human
-- Avoid robotic language
+- Tone: direct, concise, practical
 - Be direct and clear
 - Do not mention AI
 - Output only the message`,
           },
           {
             role: 'user',
-            content: `Situation:\n${summary}\n\nNext steps:\n${actionItems.map((item) => `- ${item}`).join('\n')}`,
+            content: `Goal:\n${goal}\n\nNext step:\n${nextStep}`,
           },
         ],
       }),
