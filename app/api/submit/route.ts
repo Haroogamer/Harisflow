@@ -8,48 +8,47 @@ type SubmitBody = {
 }
 
 function parseAndValidateAIResponse(content: string): AIResponse {
-  let parsed: AIResponse
+  let parsed: unknown
   try {
-    parsed = JSON.parse(content) as AIResponse
+    parsed = JSON.parse(content)
   } catch {
-    throw new Error('Invalid AI JSON response')
+    console.error('AI validation failure:', 'Response was not valid JSON')
+    throw new Error('AI response was not valid JSON')
   }
 
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    throw new Error('Invalid AI JSON response')
+    console.error('AI validation failure:', 'Response was not a JSON object')
+    throw new Error('AI response was not a JSON object')
   }
 
-  const goal =
-    typeof parsed.goal === 'string' && parsed.goal.trim()
-      ? parsed.goal.trim()
-      : null
-  const constraintsRaw = parsed.constraints
-  const constraints =
-    Array.isArray(constraintsRaw) &&
-    constraintsRaw.every((item) => typeof item === 'string')
-      ? constraintsRaw.map((item) => item.trim()).filter(Boolean)
-      : null
-  const optionsRaw = parsed.options
-  const options =
-    Array.isArray(optionsRaw) &&
-    optionsRaw.every((item) => typeof item === 'string')
-      ? optionsRaw.map((item) => item.trim()).filter(Boolean)
-      : null
-  const nextStep =
-    typeof parsed.next_step === 'string' && parsed.next_step.trim()
-      ? parsed.next_step.trim()
-      : null
+  console.log('Parsed AI object:', parsed)
 
-  if (
-    !goal ||
-    !constraints ||
-    constraints.length === 0 ||
-    !options ||
-    options.length < 2 ||
-    options.length > 3 ||
-    !nextStep
-  ) {
-    throw new Error('Invalid AI JSON response')
+  const responseObject = parsed as Record<string, unknown>
+  const goal =
+    typeof responseObject.goal === 'string' ? responseObject.goal.trim() : ''
+  const constraints = Array.isArray(responseObject.constraints)
+    ? responseObject.constraints
+        .filter((item): item is string => typeof item === 'string' && Boolean(item.trim()))
+        .map((item) => item.trim())
+    : []
+  const options = Array.isArray(responseObject.options)
+    ? responseObject.options
+        .filter((item): item is string => typeof item === 'string' && Boolean(item.trim()))
+        .map((item) => item.trim())
+    : []
+  const nextStep =
+    typeof responseObject.next_step === 'string'
+      ? responseObject.next_step.trim()
+      : ''
+
+  if (!goal) {
+    console.error('AI validation failure:', 'Missing non-empty goal')
+    throw new Error('AI response is missing a non-empty goal')
+  }
+
+  if (!nextStep) {
+    console.error('AI validation failure:', 'Missing non-empty next_step')
+    throw new Error('AI response is missing a non-empty next_step')
   }
 
   return {
@@ -80,10 +79,14 @@ export async function POST(req: Request) {
   try {
     const aiResponse = await summarizeRequest(request)
     const content = aiResponse?.trim() ?? ''
+    console.log('Raw AI content:', content)
     parsedAIResponse = parseAndValidateAIResponse(content)
   } catch (error) {
     console.error('OPENAI SUMMARY ERROR:', error)
-    return NextResponse.json({ error: 'Failed to process request' }, { status: 500 })
+    const message =
+      error instanceof Error ? error.message : 'Failed to process request'
+
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 
   const { error } = await supabase
@@ -103,5 +106,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Failed to save' }, { status: 500 })
   }
 
-  return NextResponse.json(parsedAIResponse)
+  return NextResponse.json({
+    goal: parsedAIResponse.goal,
+    constraints: parsedAIResponse.constraints,
+    options: parsedAIResponse.options,
+    next_step: parsedAIResponse.next_step,
+  })
 }
