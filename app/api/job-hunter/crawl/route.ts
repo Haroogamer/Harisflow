@@ -25,6 +25,7 @@ type SourceResult = {
   inserted: number
   skipped: number
   failed: number
+  notificationFailures: number
   ignoredInvalid: number
   errors: CrawlError[]
 }
@@ -88,7 +89,7 @@ export async function GET(request: Request) {
   let inserted = 0
   let skipped = 0
   let failed = 0
-  let ignoredInvalid = 0
+  let notificationFailures = 0
   const errors: CrawlError[] = []
   const sourceResults: SourceResult[] = []
 
@@ -98,6 +99,7 @@ export async function GET(request: Request) {
     let sourceInserted = 0
     let sourceSkipped = 0
     let sourceFailed = 0
+    let sourceNotificationFailures = 0
     let sourceIgnoredInvalid = 0
 
     if (source.ats_platform !== 'workday') {
@@ -110,6 +112,7 @@ export async function GET(request: Request) {
         inserted: 0,
         skipped: 0,
         failed: 0,
+        notificationFailures: 0,
         ignoredInvalid: 0,
         errors: [],
       })
@@ -145,12 +148,19 @@ export async function GET(request: Request) {
             continue
           }
 
-          await saveJob(jobWithHash)
+          const savedJob = await saveJob(jobWithHash)
           sourceInserted += 1
 
-          await sendDiscordNotification(
-            `New job found: ${job.title} at ${job.company}\n${job.job_url}`,
-          )
+          const notificationResult = await sendDiscordNotification(savedJob)
+
+          if (!notificationResult.sent) {
+            sourceNotificationFailures += 1
+
+            console.error(
+              `Failed to send Discord notification for crawled job: ${title}`,
+            )
+            console.error(notificationResult.reason)
+          }
         } catch (error) {
           sourceFailed += 1
 
@@ -182,6 +192,7 @@ export async function GET(request: Request) {
         inserted: sourceInserted,
         skipped: sourceSkipped,
         failed: sourceFailed,
+        notificationFailures: sourceNotificationFailures,
         ignoredInvalid: sourceIgnoredInvalid,
         errors: sourceErrors,
       })
@@ -221,6 +232,7 @@ export async function GET(request: Request) {
         inserted: sourceInserted,
         skipped: sourceSkipped,
         failed: sourceFailed,
+        notificationFailures: sourceNotificationFailures,
         ignoredInvalid: sourceIgnoredInvalid,
         errors: sourceErrors,
       })
@@ -230,7 +242,7 @@ export async function GET(request: Request) {
     inserted += sourceInserted
     skipped += sourceSkipped
     failed += sourceFailed
-    ignoredInvalid += sourceIgnoredInvalid
+    notificationFailures += sourceNotificationFailures
     errors.push(...sourceErrors)
   }
 
@@ -239,8 +251,8 @@ export async function GET(request: Request) {
     inserted,
     skipped,
     failed,
-    ignoredInvalid,
-    errors,
+    notificationFailures,
     sourceResults,
+    errors,
   })
 }
