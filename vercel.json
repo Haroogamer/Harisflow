@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/job-hunter/crawl",
+      "schedule": "*/30 * * * *"
+    }
+  ]
+}
