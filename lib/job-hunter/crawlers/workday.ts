@@ -20,7 +20,9 @@ export const WORKDAY_COMPANIES: WorkdayCompanyConfig[] = [
   },
 ]
 
-type NormalizedWorkdayJob = Omit<JobHunterJob, 'id'>
+type NormalizedWorkdayJob = Omit<JobHunterJob, 'id' | 'status'> & {
+  status: 'new'
+}
 
 type WorkdaySearchJob = {
   title?: string

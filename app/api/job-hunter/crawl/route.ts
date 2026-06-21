@@ -7,6 +7,10 @@ import {
 } from '@/lib/job-hunter/job-storage'
 import { sendDiscordNotification } from '@/lib/job-hunter/discord'
 
+type CrawledJob = NonNullable<
+  Awaited<ReturnType<typeof crawlWorkdayGuidehouse>>[number]
+>
+
 function isAuthorized(request: Request) {
   const cronSecret = process.env.CRON_SECRET
   const authorization = request.headers.get('authorization')
@@ -39,12 +43,15 @@ export async function GET(request: Request) {
   }
 
   const jobs = await crawlWorkdayGuidehouse()
+  const validJobs = jobs.filter(
+    (job): job is CrawledJob => job !== null && job !== undefined,
+  )
   let inserted = 0
   let skipped = 0
   let failed = 0
   const errors: Array<{ title: string; error: string }> = []
 
-  for (const job of jobs) {
+  for (const job of validJobs) {
     const title = job.title || 'Untitled job'
 
     try {
@@ -79,6 +86,7 @@ export async function GET(request: Request) {
     inserted,
     skipped,
     failed,
+    ignoredInvalid: jobs.length - validJobs.length,
     errors,
   })
 }
