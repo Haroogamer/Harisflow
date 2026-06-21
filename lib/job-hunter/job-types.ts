@@ -13,3 +13,21 @@ export type JobHunterJob = {
   status: JobHunterJobStatus
   job_description: string | null
 }
+
+export type JobSource = {
+  id: string
+  company: string
+  ats_platform: string
+  careers_url: string
+  enabled: boolean
+  crawl_interval_minutes: number
+  last_crawled_at: string | null
+  last_success_at: string | null
+  last_job_found_at: string | null
+  source_status: string
+  failure_count: number
+  crawler_config: Record<string, unknown> | null
+  notes: string | null
+  created_at: string
+  updated_at: string
+}
