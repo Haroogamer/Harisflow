@@ -1,0 +1,16 @@
+name: Job Hunter Crawl
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+
+jobs:
+  crawl:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call crawl endpoint
+        env:
+          CRAWL_URL: ${{ secrets.CRAWL_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: curl -f -H "Authorization: Bearer $CRON_SECRET" "$CRAWL_URL"
