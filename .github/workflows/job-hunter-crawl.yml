@@ -17,7 +17,7 @@ jobs:
         run: |
           echo "Calling: ${CRAWL_URL}"
 
-          response=$(curl -sS -w "\nHTTP_STATUS:%{http_code}\n" \
+          response=$(curl -L -sS -w "\nHTTP_STATUS:%{http_code}\n" \
             -H "Authorization: Bearer ${CRON_SECRET}" \
             "${CRAWL_URL}")
 
