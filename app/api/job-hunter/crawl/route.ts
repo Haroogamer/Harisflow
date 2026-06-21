@@ -25,6 +25,7 @@ type SourceResult = {
   inserted: number
   skipped: number
   failed: number
+  notificationsSent: number
   notificationFailures: number
   ignoredInvalid: number
   errors: CrawlError[]
@@ -89,6 +90,7 @@ export async function GET(request: Request) {
   let inserted = 0
   let skipped = 0
   let failed = 0
+  let notificationsSent = 0
   let notificationFailures = 0
   const errors: CrawlError[] = []
   const sourceResults: SourceResult[] = []
@@ -99,6 +101,7 @@ export async function GET(request: Request) {
     let sourceInserted = 0
     let sourceSkipped = 0
     let sourceFailed = 0
+    let sourceNotificationsSent = 0
     let sourceNotificationFailures = 0
     let sourceIgnoredInvalid = 0
 
@@ -112,6 +115,7 @@ export async function GET(request: Request) {
         inserted: 0,
         skipped: 0,
         failed: 0,
+        notificationsSent: 0,
         notificationFailures: 0,
         ignoredInvalid: 0,
         errors: [],
@@ -153,8 +157,14 @@ export async function GET(request: Request) {
 
           const notificationResult = await sendDiscordNotification(savedJob)
 
-          if (!notificationResult.sent) {
+          if (notificationResult.sent) {
+            sourceNotificationsSent += 1
+          } else {
             sourceNotificationFailures += 1
+            sourceErrors.push({
+              title,
+              error: `Discord notification failed: ${notificationResult.reason}`,
+            })
 
             console.error(
               `Failed to send Discord notification for crawled job: ${title}`,
@@ -192,6 +202,7 @@ export async function GET(request: Request) {
         inserted: sourceInserted,
         skipped: sourceSkipped,
         failed: sourceFailed,
+        notificationsSent: sourceNotificationsSent,
         notificationFailures: sourceNotificationFailures,
         ignoredInvalid: sourceIgnoredInvalid,
         errors: sourceErrors,
@@ -232,6 +243,7 @@ export async function GET(request: Request) {
         inserted: sourceInserted,
         skipped: sourceSkipped,
         failed: sourceFailed,
+        notificationsSent: sourceNotificationsSent,
         notificationFailures: sourceNotificationFailures,
         ignoredInvalid: sourceIgnoredInvalid,
         errors: sourceErrors,
@@ -242,6 +254,7 @@ export async function GET(request: Request) {
     inserted += sourceInserted
     skipped += sourceSkipped
     failed += sourceFailed
+    notificationsSent += sourceNotificationsSent
     notificationFailures += sourceNotificationFailures
     errors.push(...sourceErrors)
   }
@@ -251,6 +264,7 @@ export async function GET(request: Request) {
     inserted,
     skipped,
     failed,
+    notificationsSent,
     notificationFailures,
     sourceResults,
     errors,

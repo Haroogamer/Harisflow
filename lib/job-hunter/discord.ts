@@ -41,7 +41,7 @@ export async function sendDiscordNotification(
   const webhookUrl = process.env.DISCORD_WEBHOOK_URL
 
   if (!webhookUrl) {
-    return { sent: false, reason: 'DISCORD_WEBHOOK_URL is not configured' }
+    return { sent: false, reason: 'Missing DISCORD_WEBHOOK_URL' }
   }
 
   try {
@@ -92,9 +92,11 @@ export async function sendDiscordNotification(
     })
 
     if (!response.ok) {
+      const responseText = await response.text()
+
       return {
         sent: false,
-        reason: `Discord webhook failed with status ${response.status}`,
+        reason: `Discord webhook failed with status ${response.status}: ${responseText}`,
       }
     }
 
