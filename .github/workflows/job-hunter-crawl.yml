@@ -15,6 +15,16 @@ jobs:
           CRAWL_URL: ${{ secrets.CRAWL_URL }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
-          curl -f \
+          echo "Calling: ${CRAWL_URL}"
+
+          response=$(curl -sS -w "\nHTTP_STATUS:%{http_code}\n" \
             -H "Authorization: Bearer ${CRON_SECRET}" \
-            "${CRAWL_URL}"
+            "${CRAWL_URL}")
+
+          echo "$response"
+
+          status=$(echo "$response" | grep "HTTP_STATUS" | cut -d':' -f2)
+
+          if [ "$status" -lt 200 ] || [ "$status" -ge 300 ]; then
+            exit 1
+          fi
