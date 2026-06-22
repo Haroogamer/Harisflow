@@ -10,19 +10,12 @@ jobs:
   monitor-saved-sources:
     if: github.event_name == 'workflow_dispatch' || github.event.schedule == '*/30 * * * *'
     runs-on: ubuntu-latest
-
     steps:
       - name: Call crawl endpoint
-        env:
-          CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
-          url="https://harisflow.com/api/job-hunter/crawl"
-
-          echo "Calling: ${url}"
-
           response=$(curl -L -sS -w "\nHTTP_STATUS:%{http_code}\n" \
-            -H "Authorization: Bearer ${CRON_SECRET}" \
-            "${url}")
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://harisflow.com/api/job-hunter/crawl")
 
           echo "$response"
 
@@ -35,19 +28,12 @@ jobs:
   discover-internet:
     if: github.event_name == 'workflow_dispatch' || github.event.schedule == '17 8 * * *'
     runs-on: ubuntu-latest
-
     steps:
       - name: Call internet discovery endpoint
-        env:
-          CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
-          url="https://harisflow.com/api/job-hunter/discover-internet"
-
-          echo "Calling: ${url}"
-
           response=$(curl -L -sS -w "\nHTTP_STATUS:%{http_code}\n" \
-            -H "Authorization: Bearer ${CRON_SECRET}" \
-            "${url}")
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://harisflow.com/api/job-hunter/discover-internet")
 
           echo "$response"
 
