@@ -11,6 +11,12 @@ type SourceCandidate = {
   notes?: unknown
 }
 
+type ValidSourceCandidate = SourceCandidate & {
+  company: string
+  ats_platform: string
+  careers_url: string
+}
+
 type SaveDiscoveredSourcesRequestBody = {
   sources?: unknown
 }
@@ -41,7 +47,7 @@ function isAuthorized(request: Request) {
   )
 }
 
-function isSourceCandidate(value: unknown): value is SourceCandidate {
+function isSourceCandidate(value: unknown): value is ValidSourceCandidate {
   if (typeof value !== 'object' || value === null) {
     return false
   }
