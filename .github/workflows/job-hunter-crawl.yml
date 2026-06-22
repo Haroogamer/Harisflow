@@ -3,23 +3,51 @@ name: Job Hunter Crawl
 on:
   schedule:
     - cron: "*/30 * * * *"
+    - cron: "17 8 * * *"
   workflow_dispatch:
 
 jobs:
-  crawl:
+  monitor-saved-sources:
+    if: github.event_name == 'workflow_dispatch' || github.event.schedule == '*/30 * * * *'
     runs-on: ubuntu-latest
 
     steps:
       - name: Call crawl endpoint
         env:
-          CRAWL_URL: ${{ secrets.CRAWL_URL }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
-          echo "Calling: ${CRAWL_URL}"
+          url="https://harisflow.com/api/job-hunter/crawl"
+
+          echo "Calling: ${url}"
 
           response=$(curl -L -sS -w "\nHTTP_STATUS:%{http_code}\n" \
             -H "Authorization: Bearer ${CRON_SECRET}" \
-            "${CRAWL_URL}")
+            "${url}")
+
+          echo "$response"
+
+          status=$(echo "$response" | grep "HTTP_STATUS" | cut -d':' -f2)
+
+          if [ "$status" -lt 200 ] || [ "$status" -ge 300 ]; then
+            exit 1
+          fi
+
+  discover-internet:
+    if: github.event_name == 'workflow_dispatch' || github.event.schedule == '17 8 * * *'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Call internet discovery endpoint
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          url="https://harisflow.com/api/job-hunter/discover-internet"
+
+          echo "Calling: ${url}"
+
+          response=$(curl -L -sS -w "\nHTTP_STATUS:%{http_code}\n" \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            "${url}")
 
           echo "$response"
 

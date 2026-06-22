@@ -7,6 +7,7 @@ import {
 } from '@/lib/job-hunter/job-storage'
 import { getEnabledJobSources } from '@/lib/job-hunter/job-sources'
 import type { JobSource } from '@/lib/job-hunter/job-types'
+import { explainJobMatch } from '@/lib/job-hunter/keywords'
 import { sendDiscordNotification } from '@/lib/job-hunter/discord'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 
@@ -15,6 +16,19 @@ type CrawledJob = NonNullable<
 >
 
 type CrawlError = { title: string; error: string }
+
+type IgnoredSample = {
+  title: string
+  company: string
+  reason: string
+}
+
+type MatchedSample = {
+  title: string
+  company: string
+  matchedTerms: string[]
+  reason: string
+}
 
 type SourceResult = {
   sourceId: string
@@ -28,8 +42,11 @@ type SourceResult = {
   notificationsSent: number
   notificationFailures: number
   ignoredInvalid: number
+  ignoredNonMatching: number
   errors: CrawlError[]
 }
+
+const SAMPLE_LIMIT = 10
 
 function isAuthorized(request: Request) {
   const cronSecret = process.env.CRON_SECRET
@@ -92,8 +109,11 @@ export async function GET(request: Request) {
   let failed = 0
   let notificationsSent = 0
   let notificationFailures = 0
+  let ignoredNonMatching = 0
   const errors: CrawlError[] = []
   const sourceResults: SourceResult[] = []
+  const ignoredSamples: IgnoredSample[] = []
+  const matchedSamples: MatchedSample[] = []
 
   for (const source of sources) {
     const sourceErrors: CrawlError[] = []
@@ -104,6 +124,7 @@ export async function GET(request: Request) {
     let sourceNotificationsSent = 0
     let sourceNotificationFailures = 0
     let sourceIgnoredInvalid = 0
+    let sourceIgnoredNonMatching = 0
 
     if (source.ats_platform !== 'workday') {
       sourceResults.push({
@@ -118,6 +139,7 @@ export async function GET(request: Request) {
         notificationsSent: 0,
         notificationFailures: 0,
         ignoredInvalid: 0,
+        ignoredNonMatching: 0,
         errors: [],
       })
       continue
@@ -141,6 +163,31 @@ export async function GET(request: Request) {
 
       for (const job of validJobs) {
         const title = job.title || 'Untitled job'
+        const company = job.company || source.company
+        const match = explainJobMatch(job)
+
+        if (!match.matches) {
+          sourceIgnoredNonMatching += 1
+
+          if (ignoredSamples.length < SAMPLE_LIMIT) {
+            ignoredSamples.push({
+              title,
+              company,
+              reason: match.reason,
+            })
+          }
+
+          continue
+        }
+
+        if (matchedSamples.length < SAMPLE_LIMIT) {
+          matchedSamples.push({
+            title,
+            company,
+            matchedTerms: match.matchedTerms,
+            reason: match.reason,
+          })
+        }
 
         try {
           const job_hash = await generateJobHash(job)
@@ -205,6 +252,7 @@ export async function GET(request: Request) {
         notificationsSent: sourceNotificationsSent,
         notificationFailures: sourceNotificationFailures,
         ignoredInvalid: sourceIgnoredInvalid,
+        ignoredNonMatching: sourceIgnoredNonMatching,
         errors: sourceErrors,
       })
     } catch (error) {
@@ -246,6 +294,7 @@ export async function GET(request: Request) {
         notificationsSent: sourceNotificationsSent,
         notificationFailures: sourceNotificationFailures,
         ignoredInvalid: sourceIgnoredInvalid,
+        ignoredNonMatching: sourceIgnoredNonMatching,
         errors: sourceErrors,
       })
     }
@@ -256,6 +305,7 @@ export async function GET(request: Request) {
     failed += sourceFailed
     notificationsSent += sourceNotificationsSent
     notificationFailures += sourceNotificationFailures
+    ignoredNonMatching += sourceIgnoredNonMatching
     errors.push(...sourceErrors)
   }
 
@@ -266,6 +316,9 @@ export async function GET(request: Request) {
     failed,
     notificationsSent,
     notificationFailures,
+    ignoredNonMatching,
+    ignoredSamples,
+    matchedSamples,
     sourceResults,
     errors,
   })
