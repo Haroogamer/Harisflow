@@ -37,6 +37,7 @@ export type SourceIntakeResult = {
   ignoredNonMatching: number
   notificationsSent: number
   notificationFailures: number
+  rateLimitedSources: string[]
   sourceResults: {
     original_url: string
     normalized_careers_url: string
@@ -46,6 +47,11 @@ export type SourceIntakeResult = {
     reason: string
   }[]
   errors: SourceIntakeError[]
+}
+
+type SourceIntakeOptions = {
+  crawlDelayMs?: number
+  notificationDelayMs?: number
 }
 
 function serializeError(error: unknown) {
@@ -63,6 +69,16 @@ function serializeError(error: unknown) {
   } catch {
     return String(error)
   }
+}
+
+function isRateLimitErrorMessage(message: string) {
+  return /(^|\D)429(\D|$)/.test(message)
+}
+
+function delay(ms: number) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms)
+  })
 }
 
 function buildSourceNotes(source: JobSourceCandidate) {
@@ -141,6 +157,7 @@ async function crawlSource(source: JobSourceCandidate) {
 
 export async function intakeJobSourceUrls(
   urls: string[],
+  options: SourceIntakeOptions = {},
 ): Promise<SourceIntakeResult> {
   const result: SourceIntakeResult = {
     sourcesAnalyzed: 0,
@@ -153,9 +170,13 @@ export async function intakeJobSourceUrls(
     ignoredNonMatching: 0,
     notificationsSent: 0,
     notificationFailures: 0,
+    rateLimitedSources: [],
     sourceResults: [],
     errors: [],
   }
+  const rateLimitedSources = new Set<string>()
+  let crawledSources = 0
+  let notificationAttempts = 0
 
   for (const url of urls) {
     result.sourcesAnalyzed += 1
@@ -209,7 +230,22 @@ export async function intakeJobSourceUrls(
       continue
     }
 
+    if (rateLimitedSources.has(normalizedSource.careers_url)) {
+      result.errors.push({
+        url,
+        source: normalizedSource.careers_url,
+        error: 'Source returned 429 earlier in this run; skipping immediate retry',
+      })
+      continue
+    }
+
     try {
+      if (options.crawlDelayMs && crawledSources > 0) {
+        await delay(options.crawlDelayMs)
+      }
+
+      crawledSources += 1
+
       const jobs = await crawlSource(normalizedSource)
       const validJobs = jobs.filter(
         (job): job is IntakeJob => job !== null && job !== undefined,
@@ -240,6 +276,12 @@ export async function intakeJobSourceUrls(
           const savedJob = await saveJob({ ...job, job_hash: jobHash })
           result.jobsInserted += 1
 
+          if (options.notificationDelayMs && notificationAttempts > 0) {
+            await delay(options.notificationDelayMs)
+          }
+
+          notificationAttempts += 1
+
           const notificationResult = await sendDiscordNotification(savedJob)
 
           if (notificationResult.sent) {
@@ -261,13 +303,24 @@ export async function intakeJobSourceUrls(
         }
       }
     } catch (error) {
+      const errorMessage = serializeError(error)
+
+      if (isRateLimitErrorMessage(errorMessage)) {
+        rateLimitedSources.add(normalizedSource.careers_url)
+        result.rateLimitedSources = Array.from(rateLimitedSources)
+      }
+
       result.errors.push({
         url,
         source: normalizedSource.careers_url,
-        error: serializeError(error),
+        error: isRateLimitErrorMessage(errorMessage)
+          ? `Source returned 429; skipping immediate retry: ${errorMessage}`
+          : errorMessage,
       })
     }
   }
+
+  result.rateLimitedSources = Array.from(rateLimitedSources)
 
   return result
 }

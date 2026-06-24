@@ -47,6 +47,8 @@ type SourceResult = {
 }
 
 const SAMPLE_LIMIT = 10
+const SOURCE_CRAWL_DELAY_MS = 2_000
+const DISCORD_NOTIFICATION_DELAY_MS = 750
 
 function isAuthorized(request: Request) {
   const cronSecret = process.env.CRON_SECRET
@@ -72,6 +74,16 @@ function serializeError(error: unknown) {
   } catch {
     return String(error)
   }
+}
+
+function isRateLimitErrorMessage(message: string) {
+  return /(^|\D)429(\D|$)/.test(message)
+}
+
+function delay(ms: number) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms)
+  })
 }
 
 async function updateJobSource(
@@ -110,10 +122,13 @@ export async function GET(request: Request) {
   let notificationsSent = 0
   let notificationFailures = 0
   let ignoredNonMatching = 0
+  let processedSources = 0
+  let notificationAttempts = 0
   const errors: CrawlError[] = []
   const sourceResults: SourceResult[] = []
   const ignoredSamples: IgnoredSample[] = []
   const matchedSamples: MatchedSample[] = []
+  const rateLimitedSources = new Set<string>()
 
   for (const source of sources) {
     const sourceErrors: CrawlError[] = []
@@ -145,7 +160,39 @@ export async function GET(request: Request) {
       continue
     }
 
+    if (rateLimitedSources.has(source.careers_url)) {
+      const rateLimitSkipError = {
+        title: source.company,
+        error: 'Source returned 429 earlier in this run; skipping immediate retry',
+      }
+
+      sourceResults.push({
+        sourceId: source.id,
+        company: source.company,
+        atsPlatform: source.ats_platform,
+        status: 'error',
+        discovered: 0,
+        inserted: 0,
+        skipped: 0,
+        failed: 1,
+        notificationsSent: 0,
+        notificationFailures: 0,
+        ignoredInvalid: 0,
+        ignoredNonMatching: 0,
+        errors: [rateLimitSkipError],
+      })
+      errors.push(rateLimitSkipError)
+      failed += 1
+      continue
+    }
+
     try {
+      if (processedSources > 0) {
+        await delay(SOURCE_CRAWL_DELAY_MS)
+      }
+
+      processedSources += 1
+
       const crawledAt = new Date().toISOString()
 
       await updateJobSource(source.id, { last_crawled_at: crawledAt })
@@ -201,6 +248,12 @@ export async function GET(request: Request) {
 
           const savedJob = await saveJob(jobWithHash)
           sourceInserted += 1
+
+          if (notificationAttempts > 0) {
+            await delay(DISCORD_NOTIFICATION_DELAY_MS)
+          }
+
+          notificationAttempts += 1
 
           const notificationResult = await sendDiscordNotification(savedJob)
 
@@ -259,7 +312,18 @@ export async function GET(request: Request) {
       sourceFailed += 1
 
       const errorMessage = serializeError(error)
-      const sourceError = { title: source.company, error: errorMessage }
+      const isRateLimitError = isRateLimitErrorMessage(errorMessage)
+
+      if (isRateLimitError) {
+        rateLimitedSources.add(source.careers_url)
+      }
+
+      const sourceError = {
+        title: source.company,
+        error: isRateLimitError
+          ? `Source returned 429; skipping immediate retry: ${errorMessage}`
+          : errorMessage,
+      }
 
       sourceErrors.push(sourceError)
       console.error(`Failed to crawl job source: ${source.company}`)
@@ -316,6 +380,9 @@ export async function GET(request: Request) {
     failed,
     notificationsSent,
     notificationFailures,
+    maxProcessedSources: sources.length,
+    processedSources,
+    rateLimitedSources: Array.from(rateLimitedSources),
     ignoredNonMatching,
     ignoredSamples,
     matchedSamples,

@@ -198,15 +198,24 @@ export async function crawlWorkdayCompany(config: WorkdayCompanyConfig) {
         return null
       }
 
-      const detail = await fetchWorkdayJobDetail(apiBaseUrl, job.externalPath)
-      const normalizedJob = normalizeJob(config, job, detail)
+      try {
+        const detail = await fetchWorkdayJobDetail(apiBaseUrl, job.externalPath)
+        const normalizedJob = normalizeJob(config, job, detail)
 
-      return jobMatchesKeywords({
-        title: normalizedJob.title,
-        description: normalizedJob.job_description,
-      })
-        ? normalizedJob
-        : null
+        return jobMatchesKeywords({
+          title: normalizedJob.title,
+          description: normalizedJob.job_description,
+        })
+          ? normalizedJob
+          : null
+      } catch (error) {
+        console.warn(
+          `Skipping Workday job detail fetch failure: ${job.externalPath}`,
+        )
+        console.warn(error)
+
+        return null
+      }
     }),
   )
 
