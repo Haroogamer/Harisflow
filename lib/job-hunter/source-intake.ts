@@ -23,7 +23,20 @@ export type SourceIntakeError = {
   url?: string
   source?: string
   job?: string
+  type?: 'rate_limited' | 'error'
   error: string
+}
+
+export type SourceIntakeSourceResult = {
+  company: string
+  atsPlatform: string
+  discovered: number
+  matched: number
+  inserted: number
+  skipped: number
+  ignoredNonMatching: number
+  failed: number
+  rateLimited: boolean
 }
 
 export type SourceIntakeResult = {
@@ -38,14 +51,7 @@ export type SourceIntakeResult = {
   notificationsSent: number
   notificationFailures: number
   rateLimitedSources: string[]
-  sourceResults: {
-    original_url: string
-    normalized_careers_url: string
-    company: string
-    sourceInserted: boolean
-    sourceSkipped: boolean
-    reason: string
-  }[]
+  sourceResults: SourceIntakeSourceResult[]
   errors: SourceIntakeError[]
 }
 
@@ -186,10 +192,25 @@ export async function intakeJobSourceUrls(
     if (!source) {
       result.errors.push({
         url,
+        type: 'error',
         error: 'Unsupported or invalid job source URL',
       })
       continue
     }
+
+    const sourceResult: SourceIntakeSourceResult = {
+      company: source.company,
+      atsPlatform: source.ats_platform,
+      discovered: 0,
+      matched: 0,
+      inserted: 0,
+      skipped: 0,
+      ignoredNonMatching: 0,
+      failed: 0,
+      rateLimited: false,
+    }
+
+    result.sourceResults.push(sourceResult)
 
     let normalizedSource = source
 
@@ -200,24 +221,18 @@ export async function intakeJobSourceUrls(
         careers_url: saveResult.normalizedCareersUrl,
       }
 
-      result.sourceResults.push({
-        original_url: source.original_url,
-        normalized_careers_url: saveResult.normalizedCareersUrl,
-        company: source.company,
-        sourceInserted: saveResult.sourceInserted,
-        sourceSkipped: saveResult.sourceSkipped,
-        reason: saveResult.reason,
-      })
-
       if (saveResult.sourceInserted) {
         result.sourcesInserted += 1
       } else {
         result.sourcesSkipped += 1
       }
     } catch (error) {
+      sourceResult.failed += 1
+
       result.errors.push({
         url,
         source: source.careers_url,
+        type: 'error',
         error: serializeError(error),
       })
       continue
@@ -231,9 +246,13 @@ export async function intakeJobSourceUrls(
     }
 
     if (rateLimitedSources.has(normalizedSource.careers_url)) {
+      sourceResult.rateLimited = true
+      sourceResult.failed += 1
+
       result.errors.push({
         url,
         source: normalizedSource.careers_url,
+        type: 'rate_limited',
         error: 'Source returned 429 earlier in this run; skipping immediate retry',
       })
       continue
@@ -252,6 +271,7 @@ export async function intakeJobSourceUrls(
       )
 
       result.jobsDiscovered += jobs.length
+      sourceResult.discovered += jobs.length
 
       for (const job of validJobs) {
         const title = job.title || 'Untitled job'
@@ -259,10 +279,12 @@ export async function intakeJobSourceUrls(
 
         if (!match.matches) {
           result.ignoredNonMatching += 1
+          sourceResult.ignoredNonMatching += 1
           continue
         }
 
         result.jobsMatched += 1
+        sourceResult.matched += 1
 
         try {
           const jobHash = await generateJobHash(job)
@@ -270,11 +292,13 @@ export async function intakeJobSourceUrls(
 
           if (exists) {
             result.jobsSkipped += 1
+            sourceResult.skipped += 1
             continue
           }
 
           const savedJob = await saveJob({ ...job, job_hash: jobHash })
           result.jobsInserted += 1
+          sourceResult.inserted += 1
 
           if (options.notificationDelayMs && notificationAttempts > 0) {
             await delay(options.notificationDelayMs)
@@ -288,32 +312,42 @@ export async function intakeJobSourceUrls(
             result.notificationsSent += 1
           } else {
             result.notificationFailures += 1
+
             result.errors.push({
               source: normalizedSource.careers_url,
               job: title,
+              type: 'error',
               error: `Discord notification failed: ${notificationResult.reason}`,
             })
           }
         } catch (error) {
+          sourceResult.failed += 1
+
           result.errors.push({
             source: normalizedSource.careers_url,
             job: title,
+            type: 'error',
             error: serializeError(error),
           })
         }
       }
     } catch (error) {
       const errorMessage = serializeError(error)
+      const isRateLimited = isRateLimitErrorMessage(errorMessage)
 
-      if (isRateLimitErrorMessage(errorMessage)) {
+      sourceResult.failed += 1
+
+      if (isRateLimited) {
         rateLimitedSources.add(normalizedSource.careers_url)
         result.rateLimitedSources = Array.from(rateLimitedSources)
+        sourceResult.rateLimited = true
       }
 
       result.errors.push({
         url,
         source: normalizedSource.careers_url,
-        error: isRateLimitErrorMessage(errorMessage)
+        type: isRateLimited ? 'rate_limited' : 'error',
+        error: isRateLimited
           ? `Source returned 429; skipping immediate retry: ${errorMessage}`
           : errorMessage,
       })

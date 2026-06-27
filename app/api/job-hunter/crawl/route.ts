@@ -36,9 +36,11 @@ type SourceResult = {
   atsPlatform: string
   status: 'success' | 'error' | 'unsupported'
   discovered: number
+  matched: number
   inserted: number
   skipped: number
   failed: number
+  rateLimited: boolean
   notificationsSent: number
   notificationFailures: number
   ignoredInvalid: number
@@ -46,9 +48,17 @@ type SourceResult = {
   errors: CrawlError[]
 }
 
+type ErrorSummaryItem = {
+  type: 'rate_limited' | 'error'
+  message: string
+  count: number
+  examples: CrawlError[]
+}
+
 const SAMPLE_LIMIT = 10
 const SOURCE_CRAWL_DELAY_MS = 2_000
 const DISCORD_NOTIFICATION_DELAY_MS = 750
+const ERROR_EXAMPLE_LIMIT = 3
 
 function isAuthorized(request: Request) {
   const cronSecret = process.env.CRON_SECRET
@@ -78,6 +88,35 @@ function serializeError(error: unknown) {
 
 function isRateLimitErrorMessage(message: string) {
   return /(^|\D)429(\D|$)/.test(message)
+}
+
+function buildErrorSummary(errors: CrawlError[]) {
+  const summaryByKey = new Map<string, ErrorSummaryItem>()
+
+  for (const error of errors) {
+    const type = error.error.includes('429') ? 'rate_limited' : 'error'
+    const key = `${type}::${error.error}`
+    const existing = summaryByKey.get(key)
+
+    if (existing) {
+      existing.count += 1
+
+      if (existing.examples.length < ERROR_EXAMPLE_LIMIT) {
+        existing.examples.push(error)
+      }
+
+      continue
+    }
+
+    summaryByKey.set(key, {
+      type,
+      message: error.error,
+      count: 1,
+      examples: [error],
+    })
+  }
+
+  return Array.from(summaryByKey.values())
 }
 
 function delay(ms: number) {
@@ -133,9 +172,11 @@ export async function GET(request: Request) {
   for (const source of sources) {
     const sourceErrors: CrawlError[] = []
     let sourceDiscovered = 0
+    let sourceMatched = 0
     let sourceInserted = 0
     let sourceSkipped = 0
     let sourceFailed = 0
+    let sourceRateLimited = false
     let sourceNotificationsSent = 0
     let sourceNotificationFailures = 0
     let sourceIgnoredInvalid = 0
@@ -148,9 +189,11 @@ export async function GET(request: Request) {
         atsPlatform: source.ats_platform,
         status: 'unsupported',
         discovered: 0,
+        matched: 0,
         inserted: 0,
         skipped: 0,
         failed: 0,
+        rateLimited: false,
         notificationsSent: 0,
         notificationFailures: 0,
         ignoredInvalid: 0,
@@ -172,9 +215,11 @@ export async function GET(request: Request) {
         atsPlatform: source.ats_platform,
         status: 'error',
         discovered: 0,
+        matched: 0,
         inserted: 0,
         skipped: 0,
         failed: 1,
+        rateLimited: true,
         notificationsSent: 0,
         notificationFailures: 0,
         ignoredInvalid: 0,
@@ -226,6 +271,8 @@ export async function GET(request: Request) {
 
           continue
         }
+
+        sourceMatched += 1
 
         if (matchedSamples.length < SAMPLE_LIMIT) {
           matchedSamples.push({
@@ -299,9 +346,11 @@ export async function GET(request: Request) {
         atsPlatform: source.ats_platform,
         status: 'success',
         discovered: sourceDiscovered,
+        matched: sourceMatched,
         inserted: sourceInserted,
         skipped: sourceSkipped,
         failed: sourceFailed,
+        rateLimited: sourceRateLimited,
         notificationsSent: sourceNotificationsSent,
         notificationFailures: sourceNotificationFailures,
         ignoredInvalid: sourceIgnoredInvalid,
@@ -316,6 +365,7 @@ export async function GET(request: Request) {
 
       if (isRateLimitError) {
         rateLimitedSources.add(source.careers_url)
+        sourceRateLimited = true
       }
 
       const sourceError = {
@@ -352,9 +402,11 @@ export async function GET(request: Request) {
         atsPlatform: source.ats_platform,
         status: 'error',
         discovered: sourceDiscovered,
+        matched: sourceMatched,
         inserted: sourceInserted,
         skipped: sourceSkipped,
         failed: sourceFailed,
+        rateLimited: sourceRateLimited,
         notificationsSent: sourceNotificationsSent,
         notificationFailures: sourceNotificationFailures,
         ignoredInvalid: sourceIgnoredInvalid,
@@ -387,6 +439,7 @@ export async function GET(request: Request) {
     ignoredSamples,
     matchedSamples,
     sourceResults,
+    errorSummary: buildErrorSummary(errors),
     errors,
   })
 }
