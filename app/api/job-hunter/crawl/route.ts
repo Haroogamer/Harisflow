@@ -56,6 +56,7 @@ type ErrorSummaryItem = {
 }
 
 const SAMPLE_LIMIT = 10
+const MAX_SOURCES_PER_RUN = 5
 const SOURCE_CRAWL_DELAY_MS = 2_000
 const DISCORD_NOTIFICATION_DELAY_MS = 750
 const ERROR_EXAMPLE_LIMIT = 3
@@ -153,7 +154,9 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
+  const maxSources = MAX_SOURCES_PER_RUN
   const sources = await getEnabledJobSources()
+  const sourcesToCrawl = sources.slice(0, maxSources)
   let discovered = 0
   let inserted = 0
   let skipped = 0
@@ -169,7 +172,7 @@ export async function GET(request: Request) {
   const matchedSamples: MatchedSample[] = []
   const rateLimitedSources = new Set<string>()
 
-  for (const source of sources) {
+  for (const source of sourcesToCrawl) {
     const sourceErrors: CrawlError[] = []
     let sourceDiscovered = 0
     let sourceMatched = 0
@@ -432,7 +435,7 @@ export async function GET(request: Request) {
     failed,
     notificationsSent,
     notificationFailures,
-    maxProcessedSources: sources.length,
+    maxSources,
     processedSources,
     rateLimitedSources: Array.from(rateLimitedSources),
     ignoredNonMatching,
