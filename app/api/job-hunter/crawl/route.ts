@@ -60,6 +60,7 @@ const MAX_SOURCES_PER_RUN = 5
 const SOURCE_CRAWL_DELAY_MS = 2_000
 const DISCORD_NOTIFICATION_DELAY_MS = 750
 const ERROR_EXAMPLE_LIMIT = 3
+const SUPPORTED_ATS_PLATFORMS = new Set(['workday'])
 
 function isAuthorized(request: Request) {
   const cronSecret = process.env.CRON_SECRET
@@ -156,10 +157,11 @@ export async function GET(request: Request) {
 
   const maxSources = MAX_SOURCES_PER_RUN
   const sources = await getEnabledJobSources()
-  const sourcesToCrawl = sources.slice(0, maxSources)
+  const sourcesToCrawl: JobSource[] = []
   let discovered = 0
   let inserted = 0
   let skipped = 0
+  let skippedUnsupported = 0
   let failed = 0
   let notificationsSent = 0
   let notificationFailures = 0
@@ -172,20 +174,9 @@ export async function GET(request: Request) {
   const matchedSamples: MatchedSample[] = []
   const rateLimitedSources = new Set<string>()
 
-  for (const source of sourcesToCrawl) {
-    const sourceErrors: CrawlError[] = []
-    let sourceDiscovered = 0
-    let sourceMatched = 0
-    let sourceInserted = 0
-    let sourceSkipped = 0
-    let sourceFailed = 0
-    let sourceRateLimited = false
-    let sourceNotificationsSent = 0
-    let sourceNotificationFailures = 0
-    let sourceIgnoredInvalid = 0
-    let sourceIgnoredNonMatching = 0
-
-    if (source.ats_platform !== 'workday') {
+  for (const source of sources) {
+    if (!SUPPORTED_ATS_PLATFORMS.has(source.ats_platform)) {
+      skippedUnsupported += 1
       sourceResults.push({
         sourceId: source.id,
         company: source.company,
@@ -205,6 +196,26 @@ export async function GET(request: Request) {
       })
       continue
     }
+
+    sourcesToCrawl.push(source)
+
+    if (sourcesToCrawl.length === maxSources) {
+      break
+    }
+  }
+
+  for (const source of sourcesToCrawl) {
+    const sourceErrors: CrawlError[] = []
+    let sourceDiscovered = 0
+    let sourceMatched = 0
+    let sourceInserted = 0
+    let sourceSkipped = 0
+    let sourceFailed = 0
+    let sourceRateLimited = false
+    let sourceNotificationsSent = 0
+    let sourceNotificationFailures = 0
+    let sourceIgnoredInvalid = 0
+    let sourceIgnoredNonMatching = 0
 
     if (rateLimitedSources.has(source.careers_url)) {
       const rateLimitSkipError = {
@@ -432,6 +443,7 @@ export async function GET(request: Request) {
     discovered,
     inserted,
     skipped,
+    skippedUnsupported,
     failed,
     notificationsSent,
     notificationFailures,
