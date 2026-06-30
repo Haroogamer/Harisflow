@@ -3,7 +3,13 @@ import {
 } from '@/lib/job-hunter/us-location'
 
 const SERPAPI_SEARCH_URL = 'https://serpapi.com/search.json'
-const MAX_DISCOVERED_URLS = 20
+const MAX_DISCOVERED_URLS = 40
+
+// Query recent postings first (past week), then fall back to broader results.
+const SEARCH_WINDOWS = [
+  { tbs: 'qdr:w' },
+  { tbs: undefined },
+]
 
 export const SEARCH_DISCOVERY_QUERIES = [
   'site:myworkdayjobs.com ServiceNow Developer ("United States" OR USA OR Canada OR Remote)',
@@ -99,7 +105,7 @@ function resultMatchesAllowedLocation(result: SerpApiOrganicResult) {
   )
 }
 
-async function searchSerpApi(query: string, apiKey: string) {
+async function searchSerpApi(query: string, apiKey: string, tbs?: string) {
   const searchParams = new URLSearchParams({
     engine: 'google',
     q: query,
@@ -109,6 +115,11 @@ async function searchSerpApi(query: string, apiKey: string) {
     hl: 'en',
     api_key: apiKey,
   })
+
+  if (tbs) {
+    searchParams.set('tbs', tbs)
+  }
+
   const response = await fetch(`${SERPAPI_SEARCH_URL}?${searchParams}`)
 
   if (!response.ok) {
@@ -139,22 +150,24 @@ export async function searchServiceNowJobUrls() {
 
   const urls = new Set<string>()
 
-  for (const query of SEARCH_DISCOVERY_QUERIES) {
-    try {
-      const organicResults = await searchSerpApi(query, apiKey)
+  for (const window of SEARCH_WINDOWS) {
+    for (const query of SEARCH_DISCOVERY_QUERIES) {
+      try {
+        const organicResults = await searchSerpApi(query, apiKey, window.tbs)
 
-      for (const result of organicResults) {
-        if (result.link && resultMatchesAllowedLocation(result)) {
-          urls.add(result.link)
-        }
+        for (const result of organicResults) {
+          if (result.link && resultMatchesAllowedLocation(result)) {
+            urls.add(result.link)
+          }
 
-        if (urls.size >= MAX_DISCOVERED_URLS) {
-          return Array.from(urls)
+          if (urls.size >= MAX_DISCOVERED_URLS) {
+            return Array.from(urls)
+          }
         }
+      } catch (error) {
+        console.warn(`SerpAPI discovery query failed: ${query}`)
+        console.warn(error)
       }
-    } catch (error) {
-      console.warn(`SerpAPI discovery query failed: ${query}`)
-      console.warn(error)
     }
   }
 
