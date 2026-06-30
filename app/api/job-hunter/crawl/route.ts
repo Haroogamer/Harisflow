@@ -325,17 +325,17 @@ export async function GET(request: Request) {
         matchedJobs.push({ job, title, company })
       }
 
-      // Batch existence check for all matched jobs
-      const hashes = await Promise.all(
-        matchedJobs.map(({ job }) => generateJobHash(job)),
+      // Batch existence check for all matched jobs; zip with hash upfront to
+      // keep job and hash together through the save/notify loop.
+      const matchedJobsWithHash = await Promise.all(
+        matchedJobs.map(async (entry) => ({
+          ...entry,
+          job_hash: await generateJobHash(entry.job),
+        })),
       )
-      const existingHashes = await jobsExistByHash(hashes)
-
-      // Zip matched jobs with their hashes to avoid index coupling
-      const matchedJobsWithHash = matchedJobs.map((entry, i) => ({
-        ...entry,
-        job_hash: hashes[i],
-      }))
+      const existingHashes = await jobsExistByHash(
+        matchedJobsWithHash.map((e) => e.job_hash),
+      )
 
       for (const { job, title, job_hash } of matchedJobsWithHash) {
         if (existingHashes.has(job_hash)) {

@@ -38,6 +38,11 @@ function getBoardHandle(baseUrl: string) {
     throw new Error(`Invalid Ashby board URL: ${baseUrl}`)
   }
 
+  // Validate handle is safe to embed in API request body
+  if (!/^[a-zA-Z0-9_-]+$/.test(handle)) {
+    throw new Error(`Invalid Ashby board handle: ${handle}`)
+  }
+
   return handle
 }
 
