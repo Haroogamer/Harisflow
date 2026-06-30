@@ -4,9 +4,10 @@ import { type CrawlOptions, isJobRecent } from '@/lib/job-hunter/crawlers/types'
 import { RECENT_JOB_MAX_AGE_DAYS } from '@/lib/job-hunter/constants'
 
 const ATS_PLATFORM = 'dayforce'
+const DAYFORCE_ORIGIN = 'https://jobs.dayforcehcm.com'
+const DAYFORCE_HOSTNAME = 'jobs.dayforcehcm.com'
 const REQUEST_USER_AGENT = 'Mozilla/5.0 (compatible; Harisflow/1.0)'
 const MAX_PAGES = 20
-const DAYFORCE_HOST_PATTERN = /^(?:jobs|[a-z0-9-]+)\.dayforcehcm\.com$/i
 
 export type DayforceCompanyConfig = {
   company: string
@@ -51,7 +52,10 @@ function getDayforceSiteConfig(baseUrl: string) {
 
   if (
     url.protocol !== 'https:' ||
-    !DAYFORCE_HOST_PATTERN.test(hostname) ||
+    hostname !== DAYFORCE_HOSTNAME ||
+    !/^[a-z]{2}-[A-Z]{2}$/u.test(cultureCode) ||
+    !/^[a-zA-Z0-9_-]+$/u.test(clientNamespace) ||
+    !/^[a-zA-Z0-9_-]+$/u.test(jobBoardCode) ||
     !cultureCode ||
     !clientNamespace ||
     !jobBoardCode
@@ -60,7 +64,7 @@ function getDayforceSiteConfig(baseUrl: string) {
   }
 
   return {
-    origin: `https://${hostname}`,
+    origin: DAYFORCE_ORIGIN,
     cultureCode,
     clientNamespace,
     jobBoardCode,

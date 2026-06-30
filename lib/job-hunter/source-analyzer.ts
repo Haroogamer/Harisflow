@@ -10,7 +10,7 @@ type AtsPlatform =
 const DEFAULT_LOCALE = 'en'
 const ORACLE_CLOUD_HOST_PATTERN =
   /^[a-z0-9-]+\.fa(?:\.[a-z0-9-]+)?\.oraclecloud\.com$/i
-const DAYFORCE_HOST_PATTERN = /^(?:jobs|[a-z0-9-]+)\.dayforcehcm\.com$/i
+const DAYFORCE_HOSTNAME = 'jobs.dayforcehcm.com'
 const ULTIPRO_HOST_PATTERN = /^recruiting(?:2)?\.ultipro\.(?:com|ca)$/i
 
 export type JobSourceCandidate = {
@@ -35,7 +35,7 @@ function isOracleCloudHost(hostname: string) {
 }
 
 function isDayforceHost(hostname: string) {
-  return DAYFORCE_HOST_PATTERN.test(hostname)
+  return hostname === DAYFORCE_HOSTNAME
 }
 
 function isUltiproHost(hostname: string) {

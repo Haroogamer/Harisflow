@@ -8,6 +8,8 @@ const REQUEST_USER_AGENT = 'Mozilla/5.0 (compatible; Harisflow/1.0)'
 const PAGE_SIZE = 50
 const MAX_PAGES = 20
 const ULTIPRO_HOST_PATTERN = /^recruiting(?:2)?\.ultipro\.(?:com|ca)$/i
+const ULTIPRO_BOARD_ID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const SEARCH_BODY = {
   opportunitySearch: {
     Top: PAGE_SIZE,
@@ -90,14 +92,35 @@ function getUltiproSiteConfig(baseUrl: string) {
   if (
     url.protocol !== 'https:' ||
     !ULTIPRO_HOST_PATTERN.test(hostname) ||
+    !/^[a-zA-Z0-9]+$/u.test(companyCode) ||
+    !ULTIPRO_BOARD_ID_PATTERN.test(boardId) ||
     !companyCode ||
     !boardId
   ) {
     throw new Error(`Invalid UltiPro careers URL: ${baseUrl}`)
   }
 
+  let origin: string
+
+  switch (hostname) {
+    case 'recruiting.ultipro.com':
+      origin = 'https://recruiting.ultipro.com'
+      break
+    case 'recruiting2.ultipro.com':
+      origin = 'https://recruiting2.ultipro.com'
+      break
+    case 'recruiting.ultipro.ca':
+      origin = 'https://recruiting.ultipro.ca'
+      break
+    case 'recruiting2.ultipro.ca':
+      origin = 'https://recruiting2.ultipro.ca'
+      break
+    default:
+      throw new Error(`Invalid UltiPro careers URL: ${baseUrl}`)
+  }
+
   return {
-    origin: `https://${hostname}`,
+    origin,
     companyCode,
     boardId,
   }
