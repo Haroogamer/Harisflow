@@ -377,3 +377,16 @@ export function explainJobMatch(job: KeywordMatchJob) {
 export function jobMatchesKeywords(job: KeywordMatchJob) {
   return explainJobMatch(job).matches
 }
+
+export function titleMightMatchKeywords(title: string | null | undefined) {
+  if (!title) return true
+
+  const lower = title.toLowerCase()
+  const hasServiceNowTerm = STRONG_TITLE_TERMS.some((term) =>
+    includesTerm(lower, term.value),
+  )
+
+  if (hasServiceNowTerm) return true
+
+  return ROLE_TERMS.some((term) => includesTerm(lower, term.value))
+}

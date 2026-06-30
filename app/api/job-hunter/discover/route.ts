@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { crawlGreenhouseCompany } from '@/lib/job-hunter/crawlers/greenhouse'
 import { crawlWorkdayCompany } from '@/lib/job-hunter/crawlers/workday'
+import { crawlLeverCompany } from '@/lib/job-hunter/crawlers/lever'
+import { crawlAshbyCompany } from '@/lib/job-hunter/crawlers/ashby'
 import {
   DISCOVERY_SOURCES,
   type DiscoverySource,
@@ -16,6 +18,8 @@ import {
 type DiscoveredJob = NonNullable<
   | Awaited<ReturnType<typeof crawlWorkdayCompany>>[number]
   | Awaited<ReturnType<typeof crawlGreenhouseCompany>>[number]
+  | Awaited<ReturnType<typeof crawlLeverCompany>>[number]
+  | Awaited<ReturnType<typeof crawlAshbyCompany>>[number]
 >
 
 type DiscoveryError = { title: string; error: string }
@@ -79,6 +83,14 @@ function serializeError(error: unknown) {
 async function crawlDiscoverySource(source: DiscoverySource) {
   if (source.ats_platform === 'greenhouse') {
     return crawlGreenhouseCompany(source)
+  }
+
+  if (source.ats_platform === 'lever') {
+    return crawlLeverCompany(source)
+  }
+
+  if (source.ats_platform === 'ashby') {
+    return crawlAshbyCompany(source)
   }
 
   return crawlWorkdayCompany(source)

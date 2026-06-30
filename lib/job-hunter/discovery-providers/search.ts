@@ -10,6 +10,8 @@ export const SEARCH_DISCOVERY_QUERIES = [
   'site:myworkdayjobs.com ServiceNow Architect ("United States" OR USA OR Canada OR Remote)',
   'site:boards.greenhouse.io ServiceNow Developer ("United States" OR USA OR Canada OR Remote)',
   'site:jobs.lever.co ServiceNow Developer ("United States" OR USA OR Canada OR Remote)',
+  'site:jobs.ashbyhq.com ServiceNow Developer ("United States" OR USA OR Canada OR Remote)',
+  'site:jobs.ashbyhq.com ServiceNow Architect ("United States" OR USA OR Canada OR Remote)',
   'site:myworkdayjobs.com ServiceNow Remote',
   'site:myworkdayjobs.com ServiceNow Canada',
   'site:myworkdayjobs.com ServiceNow USA',
