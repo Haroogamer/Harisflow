@@ -1,3 +1,8 @@
+import {
+  US_STATE_ABBREVIATIONS_PATTERN,
+  US_STATE_NAMES,
+} from '@/lib/job-hunter/us-location'
+
 const SERPAPI_SEARCH_URL = 'https://serpapi.com/search.json'
 const MAX_DISCOVERED_URLS = 20
 
@@ -39,64 +44,6 @@ const ALLOWED_LOCATION_TERMS = [
   'virginia',
 ]
 
-const US_STATE_NAMES = [
-  'alabama',
-  'alaska',
-  'arizona',
-  'arkansas',
-  'california',
-  'colorado',
-  'connecticut',
-  'delaware',
-  'florida',
-  'georgia',
-  'hawaii',
-  'idaho',
-  'illinois',
-  'indiana',
-  'iowa',
-  'kansas',
-  'kentucky',
-  'louisiana',
-  'maine',
-  'maryland',
-  'massachusetts',
-  'michigan',
-  'minnesota',
-  'mississippi',
-  'missouri',
-  'montana',
-  'nebraska',
-  'nevada',
-  'new hampshire',
-  'new jersey',
-  'new mexico',
-  'new york',
-  'north carolina',
-  'north dakota',
-  'ohio',
-  'oklahoma',
-  'oregon',
-  'pennsylvania',
-  'rhode island',
-  'south carolina',
-  'south dakota',
-  'tennessee',
-  'texas',
-  'utah',
-  'vermont',
-  'virginia',
-  'washington',
-  'west virginia',
-  'wisconsin',
-  'wyoming',
-  'district of columbia',
-  'washington dc',
-]
-
-const US_STATE_ABBREVIATIONS_PATTERN =
-  /\b[a-z][a-z .'-]*,\s*(al|ak|az|ar|ca|co|ct|de|fl|ga|hi|ia|id|il|in|ks|ky|la|ma|md|me|mi|mn|mo|ms|mt|nc|nd|ne|nh|nj|nm|nv|ny|oh|ok|or|pa|ri|sc|sd|tn|tx|ut|va|vt|wa|wi|wv|wy|dc)\b/
-
 const BLOCKED_LOCATION_TERMS = [
   'india',
   'uk',
@@ -121,15 +68,11 @@ function includesLocationTerm(text: string, term: string) {
 }
 
 function hasUsStateIndicator(text: string) {
-  if (
+  return (
     US_STATE_NAMES.some((term) =>
       includesLocationTerm(text, term),
-    )
-  ) {
-    return true
-  }
-
-  return US_STATE_ABBREVIATIONS_PATTERN.test(text)
+    ) || US_STATE_ABBREVIATIONS_PATTERN.test(text)
+  )
 }
 
 function resultMatchesAllowedLocation(result: SerpApiOrganicResult) {
