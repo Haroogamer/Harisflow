@@ -1,6 +1,7 @@
 import { createHash } from 'crypto'
 import type { JobHunterJob } from '@/lib/job-hunter/job-types'
 import { type CrawlOptions, isJobRecent } from '@/lib/job-hunter/crawlers/types'
+import { RECENT_JOB_MAX_AGE_DAYS } from '@/lib/job-hunter/constants'
 
 const ATS_PLATFORM = 'ashby'
 const ASHBY_API_ORIGIN = 'https://api.ashbyhq.com'
@@ -134,7 +135,7 @@ export async function crawlAshbyCompany(
   config: AshbyCompanyConfig,
   options: CrawlOptions = {},
 ) {
-  const maxAgeDays = options.maxAgeDays ?? 14
+  const maxAgeDays = options.maxAgeDays ?? RECENT_JOB_MAX_AGE_DAYS
   const boardHandle = getBoardHandle(config.baseUrl)
   const jobs = await fetchAshbyJobs(boardHandle)
 

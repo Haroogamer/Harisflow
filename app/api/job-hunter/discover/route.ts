@@ -3,6 +3,9 @@ import { crawlGreenhouseCompany } from '@/lib/job-hunter/crawlers/greenhouse'
 import { crawlWorkdayCompany } from '@/lib/job-hunter/crawlers/workday'
 import { crawlLeverCompany } from '@/lib/job-hunter/crawlers/lever'
 import { crawlAshbyCompany } from '@/lib/job-hunter/crawlers/ashby'
+import { crawlOracleCloudCompany } from '@/lib/job-hunter/crawlers/oraclecloud'
+import { crawlDayforceCompany } from '@/lib/job-hunter/crawlers/dayforce'
+import { crawlUltiproCompany } from '@/lib/job-hunter/crawlers/ultipro'
 import {
   DISCOVERY_SOURCES,
   type DiscoverySource,
@@ -20,6 +23,9 @@ type DiscoveredJob = NonNullable<
   | Awaited<ReturnType<typeof crawlGreenhouseCompany>>[number]
   | Awaited<ReturnType<typeof crawlLeverCompany>>[number]
   | Awaited<ReturnType<typeof crawlAshbyCompany>>[number]
+  | Awaited<ReturnType<typeof crawlOracleCloudCompany>>[number]
+  | Awaited<ReturnType<typeof crawlDayforceCompany>>[number]
+  | Awaited<ReturnType<typeof crawlUltiproCompany>>[number]
 >
 
 type DiscoveryError = { title: string; error: string }
@@ -91,6 +97,18 @@ async function crawlDiscoverySource(source: DiscoverySource) {
 
   if (source.ats_platform === 'ashby') {
     return crawlAshbyCompany(source)
+  }
+
+  if (source.ats_platform === 'oraclecloud') {
+    return crawlOracleCloudCompany(source)
+  }
+
+  if (source.ats_platform === 'dayforce') {
+    return crawlDayforceCompany(source)
+  }
+
+  if (source.ats_platform === 'ultipro') {
+    return crawlUltiproCompany(source)
   }
 
   return crawlWorkdayCompany(source)

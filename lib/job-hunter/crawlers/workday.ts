@@ -6,6 +6,7 @@ import {
   SERVICE_NOW_KEYWORDS,
 } from '@/lib/job-hunter/keywords'
 import { type CrawlOptions, isJobRecent } from '@/lib/job-hunter/crawlers/types'
+import { RECENT_JOB_MAX_AGE_DAYS } from '@/lib/job-hunter/constants'
 
 const ATS_PLATFORM = 'workday'
 const PAGE_SIZE = 20
@@ -184,7 +185,7 @@ export async function crawlWorkdayCompany(
   config: WorkdayCompanyConfig,
   options: CrawlOptions = {},
 ) {
-  const maxAgeDays = options.maxAgeDays ?? 14
+  const maxAgeDays = options.maxAgeDays ?? RECENT_JOB_MAX_AGE_DAYS
   const apiBaseUrl = getWorkdayApiBaseUrl(config.baseUrl)
   const jobsByPath = new Map<string, WorkdaySearchJob>()
 

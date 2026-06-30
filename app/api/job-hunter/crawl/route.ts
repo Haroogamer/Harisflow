@@ -3,6 +3,9 @@ import { crawlWorkdayCompany } from '@/lib/job-hunter/crawlers/workday'
 import { crawlGreenhouseCompany } from '@/lib/job-hunter/crawlers/greenhouse'
 import { crawlLeverCompany } from '@/lib/job-hunter/crawlers/lever'
 import { crawlAshbyCompany } from '@/lib/job-hunter/crawlers/ashby'
+import { crawlOracleCloudCompany } from '@/lib/job-hunter/crawlers/oraclecloud'
+import { crawlDayforceCompany } from '@/lib/job-hunter/crawlers/dayforce'
+import { crawlUltiproCompany } from '@/lib/job-hunter/crawlers/ultipro'
 import {
   generateJobHash,
   jobsExistByHash,
@@ -13,6 +16,7 @@ import type { JobHunterJob, JobSource } from '@/lib/job-hunter/job-types'
 import { explainJobMatch } from '@/lib/job-hunter/keywords'
 import { sendDiscordNotification } from '@/lib/job-hunter/discord'
 import { supabaseAdmin } from '@/lib/supabase-admin'
+import { RECENT_JOB_MAX_AGE_DAYS } from '@/lib/job-hunter/constants'
 
 type CrawledJob = Omit<JobHunterJob, 'id'>
 
@@ -57,12 +61,20 @@ type ErrorSummaryItem = {
 }
 
 const SAMPLE_LIMIT = 10
-const MAX_SOURCES_PER_RUN = 5
+const MAX_SOURCES_PER_RUN = 15
 const SOURCE_CRAWL_DELAY_MS = 2_000
 const DISCORD_NOTIFICATION_DELAY_MS = 750
 const ERROR_EXAMPLE_LIMIT = 3
-const MAX_AGE_DAYS = 14
-const SUPPORTED_ATS_PLATFORMS = new Set(['workday', 'greenhouse', 'lever', 'ashby'])
+const MAX_AGE_DAYS = RECENT_JOB_MAX_AGE_DAYS
+const SUPPORTED_ATS_PLATFORMS = new Set([
+  'workday',
+  'greenhouse',
+  'lever',
+  'ashby',
+  'oraclecloud',
+  'dayforce',
+  'ultipro',
+])
 
 function isAuthorized(request: Request) {
   const cronSecret = process.env.CRON_SECRET
@@ -147,6 +159,27 @@ async function crawlJobSource(source: JobSource): Promise<CrawledJob[]> {
 
   if (source.ats_platform === 'ashby') {
     return crawlAshbyCompany({ ...config, ats_platform: 'ashby' }, crawlOptions)
+  }
+
+  if (source.ats_platform === 'oraclecloud') {
+    return crawlOracleCloudCompany(
+      { ...config, ats_platform: 'oraclecloud' },
+      crawlOptions,
+    )
+  }
+
+  if (source.ats_platform === 'dayforce') {
+    return crawlDayforceCompany(
+      { ...config, ats_platform: 'dayforce' },
+      crawlOptions,
+    )
+  }
+
+  if (source.ats_platform === 'ultipro') {
+    return crawlUltiproCompany(
+      { ...config, ats_platform: 'ultipro' },
+      crawlOptions,
+    )
   }
 
   return []

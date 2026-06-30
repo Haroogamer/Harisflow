@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { searchServiceNowJobUrls } from '@/lib/job-hunter/discovery-providers/search'
 import { intakeJobSourceUrls } from '@/lib/job-hunter/source-intake'
+import { RECENT_JOB_MAX_AGE_DAYS } from '@/lib/job-hunter/constants'
 
 type ErrorSummaryItem = {
   type: 'rate_limited' | 'error'
@@ -14,10 +15,11 @@ type ErrorSummaryItem = {
   }[]
 }
 
-const MAX_PROCESSED_SOURCES = 5
+const MAX_PROCESSED_SOURCES = 10
 const SOURCE_CRAWL_DELAY_MS = 2_000
 const DISCORD_NOTIFICATION_DELAY_MS = 750
 const ERROR_EXAMPLE_LIMIT = 3
+const MAX_AGE_DAYS = RECENT_JOB_MAX_AGE_DAYS
 
 function isAuthorized(request: Request) {
   const cronSecret = process.env.CRON_SECRET
@@ -85,6 +87,7 @@ export async function GET(request: Request) {
   const result = await intakeJobSourceUrls(urlsToProcess, {
     crawlDelayMs: SOURCE_CRAWL_DELAY_MS,
     notificationDelayMs: DISCORD_NOTIFICATION_DELAY_MS,
+    maxAgeDays: MAX_AGE_DAYS,
   })
 
   const sourceResults = result.sourceResults.map((sourceResult) => ({
