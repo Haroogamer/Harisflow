@@ -9,6 +9,7 @@ import { sendDiscordNotification } from '@/lib/job-hunter/discord'
 import { explainJobMatch } from '@/lib/job-hunter/keywords'
 import {
   generateJobHash,
+  jobExists,
   saveJob,
 } from '@/lib/job-hunter/job-storage'
 import {
