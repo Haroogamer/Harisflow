@@ -1,3 +1,7 @@
+import {
+  hasUsStateIndicator,
+} from '@/lib/job-hunter/us-location'
+
 const SERPAPI_SEARCH_URL = 'https://serpapi.com/search.json'
 const MAX_DISCOVERED_URLS = 20
 
@@ -80,8 +84,10 @@ function resultMatchesAllowedLocation(result: SerpApiOrganicResult) {
     return false
   }
 
-  return ALLOWED_LOCATION_TERMS.some((term) =>
-    includesLocationTerm(searchableText, term),
+  return (
+    ALLOWED_LOCATION_TERMS.some((term) =>
+      includesLocationTerm(searchableText, term),
+    ) || hasUsStateIndicator(searchableText, includesLocationTerm)
   )
 }
 

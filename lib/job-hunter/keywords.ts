@@ -1,3 +1,7 @@
+import {
+  hasUsStateIndicator,
+} from '@/lib/job-hunter/us-location'
+
 export const SERVICE_NOW_KEYWORDS = [
   'ServiceNow',
   'Service Now',
@@ -260,8 +264,10 @@ export function isAllowedLocation(job: KeywordMatchJob) {
     return false
   }
 
-  return ALLOWED_LOCATION_TERMS.some((term) =>
-    includesTerm(locationText, term.value),
+  return (
+    ALLOWED_LOCATION_TERMS.some((term) =>
+      includesTerm(locationText, term.value),
+    ) || hasUsStateIndicator(locationText, includesTerm)
   )
 }
 
