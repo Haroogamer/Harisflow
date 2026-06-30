@@ -1,4 +1,4 @@
-type AtsPlatform = 'workday' | 'greenhouse' | 'lever'
+type AtsPlatform = 'workday' | 'greenhouse' | 'lever' | 'ashby'
 
 export type JobSourceCandidate = {
   company: string
@@ -101,6 +101,25 @@ function analyzeLeverUrl(url: URL): JobSourceCandidate {
   }
 }
 
+function analyzeAshbyUrl(url: URL): JobSourceCandidate {
+  const pathParts = url.pathname.split('/').filter(Boolean)
+  const boardHandle = pathParts[0] ?? ''
+  const company = prettifyCompany(boardHandle)
+  const careersUrl = `${url.origin}/${boardHandle}`
+  const isPostingUrl = pathParts.length > 1
+
+  return {
+    company,
+    ats_platform: 'ashby',
+    careers_url: careersUrl,
+    original_url: url.toString(),
+    confidence: boardHandle ? 0.95 : 0.7,
+    notes: isPostingUrl
+      ? 'Detected Ashby job URL and normalized to the Ashby board.'
+      : 'Detected Ashby board URL.',
+  }
+}
+
 export function analyzeJobSourceUrl(url: string) {
   try {
     const parsedUrl = new URL(url)
@@ -116,6 +135,11 @@ export function analyzeJobSourceUrl(url: string) {
 
     if (hostname.includes('jobs.lever.co')) {
       return analyzeLeverUrl(parsedUrl)
+    }
+
+    // Use endsWith to prevent substring-match bypass (e.g. evilashbyhq.com)
+    if (hostname === 'jobs.ashbyhq.com' || hostname.endsWith('.ashbyhq.com')) {
+      return analyzeAshbyUrl(parsedUrl)
     }
 
     return null

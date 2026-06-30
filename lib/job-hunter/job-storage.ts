@@ -51,6 +51,21 @@ export async function jobExists(jobHash: string) {
   return Boolean(data)
 }
 
+export async function jobsExistByHash(hashes: string[]): Promise<Set<string>> {
+  if (hashes.length === 0) return new Set()
+
+  const { data, error } = await supabaseAdmin
+    .from('jobs')
+    .select('job_hash')
+    .in('job_hash', hashes)
+
+  if (error) {
+    throw error
+  }
+
+  return new Set((data ?? []).map((row) => row.job_hash as string))
+}
+
 export async function saveJob(job: SaveJobInput) {
   const jobHash = job.job_hash ?? (await generateJobHash(job))
 

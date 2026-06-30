@@ -1,5 +1,7 @@
 import { crawlGreenhouseCompany } from '@/lib/job-hunter/crawlers/greenhouse'
 import { crawlWorkdayCompany } from '@/lib/job-hunter/crawlers/workday'
+import { crawlLeverCompany } from '@/lib/job-hunter/crawlers/lever'
+import { crawlAshbyCompany } from '@/lib/job-hunter/crawlers/ashby'
 import { sendDiscordNotification } from '@/lib/job-hunter/discord'
 import { explainJobMatch } from '@/lib/job-hunter/keywords'
 import {
@@ -17,6 +19,8 @@ import { supabaseAdmin } from '@/lib/supabase-admin'
 type IntakeJob = NonNullable<
   | Awaited<ReturnType<typeof crawlWorkdayCompany>>[number]
   | Awaited<ReturnType<typeof crawlGreenhouseCompany>>[number]
+  | Awaited<ReturnType<typeof crawlLeverCompany>>[number]
+  | Awaited<ReturnType<typeof crawlAshbyCompany>>[number]
 >
 
 export type SourceIntakeError = {
@@ -158,6 +162,22 @@ async function crawlSource(source: JobSourceCandidate) {
     })
   }
 
+  if (source.ats_platform === 'lever') {
+    return crawlLeverCompany({
+      company: source.company,
+      baseUrl: source.careers_url,
+      ats_platform: 'lever',
+    })
+  }
+
+  if (source.ats_platform === 'ashby') {
+    return crawlAshbyCompany({
+      company: source.company,
+      baseUrl: source.careers_url,
+      ats_platform: 'ashby',
+    })
+  }
+
   return []
 }
 
@@ -240,7 +260,9 @@ export async function intakeJobSourceUrls(
 
     if (
       normalizedSource.ats_platform !== 'workday' &&
-      normalizedSource.ats_platform !== 'greenhouse'
+      normalizedSource.ats_platform !== 'greenhouse' &&
+      normalizedSource.ats_platform !== 'lever' &&
+      normalizedSource.ats_platform !== 'ashby'
     ) {
       continue
     }

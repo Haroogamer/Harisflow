@@ -2,8 +2,10 @@ import { createHash } from 'crypto'
 import type { JobHunterJob } from '@/lib/job-hunter/job-types'
 import {
   jobMatchesKeywords,
+  titleMightMatchKeywords,
   SERVICE_NOW_KEYWORDS,
 } from '@/lib/job-hunter/keywords'
+import { type CrawlOptions, isJobRecent } from '@/lib/job-hunter/crawlers/types'
 
 const ATS_PLATFORM = 'workday'
 const PAGE_SIZE = 20
@@ -178,7 +180,11 @@ function normalizeJob(
   }
 }
 
-export async function crawlWorkdayCompany(config: WorkdayCompanyConfig) {
+export async function crawlWorkdayCompany(
+  config: WorkdayCompanyConfig,
+  options: CrawlOptions = {},
+) {
+  const maxAgeDays = options.maxAgeDays ?? 14
   const apiBaseUrl = getWorkdayApiBaseUrl(config.baseUrl)
   const jobsByPath = new Map<string, WorkdaySearchJob>()
 
@@ -192,8 +198,13 @@ export async function crawlWorkdayCompany(config: WorkdayCompanyConfig) {
     }
   }
 
+  // Pre-filter by title before making expensive per-job detail fetches
+  const candidateJobs = Array.from(jobsByPath.values()).filter((job) =>
+    titleMightMatchKeywords(job.title),
+  )
+
   const normalizedJobs = await Promise.all(
-    Array.from(jobsByPath.values()).map(async (job) => {
+    candidateJobs.map(async (job) => {
       if (!job.externalPath) {
         return null
       }
@@ -201,6 +212,10 @@ export async function crawlWorkdayCompany(config: WorkdayCompanyConfig) {
       try {
         const detail = await fetchWorkdayJobDetail(apiBaseUrl, job.externalPath)
         const normalizedJob = normalizeJob(config, job, detail)
+
+        if (!isJobRecent(normalizedJob.date_posted, maxAgeDays)) {
+          return null
+        }
 
         return jobMatchesKeywords({
           title: normalizedJob.title,
@@ -222,12 +237,4 @@ export async function crawlWorkdayCompany(config: WorkdayCompanyConfig) {
   return normalizedJobs.filter((job): job is NormalizedWorkdayJob =>
     Boolean(job),
   )
-}
-
-export async function crawlWorkdayGuidehouse() {
-  return crawlWorkdayCompany(WORKDAY_COMPANIES[0])
-}
-
-export async function crawlWorkday() {
-  return crawlWorkdayGuidehouse()
 }

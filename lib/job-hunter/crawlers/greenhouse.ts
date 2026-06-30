@@ -1,5 +1,6 @@
 import { createHash } from 'crypto'
 import type { JobHunterJob } from '@/lib/job-hunter/job-types'
+import { type CrawlOptions, isJobRecent } from '@/lib/job-hunter/crawlers/types'
 
 const ATS_PLATFORM = 'greenhouse'
 const GREENHOUSE_API_ORIGIN = 'https://boards-api.greenhouse.io'
@@ -143,9 +144,17 @@ function normalizeJob(
   }
 }
 
-export async function crawlGreenhouseCompany(config: GreenhouseCompanyConfig) {
+export async function crawlGreenhouseCompany(
+  config: GreenhouseCompanyConfig,
+  options: CrawlOptions = {},
+) {
+  const maxAgeDays = options.maxAgeDays ?? 14
   const boardToken = getBoardToken(config.baseUrl)
   const jobs = await fetchGreenhouseJobs(boardToken)
 
-  return jobs.map((job) => normalizeJob(config, job))
+  const recentJobs = jobs.filter((job) =>
+    isJobRecent(job.first_published ?? job.updated_at, maxAgeDays),
+  )
+
+  return recentJobs.map((job) => normalizeJob(config, job))
 }

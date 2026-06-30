@@ -1,19 +1,20 @@
 import { NextResponse } from 'next/server'
 import { crawlWorkdayCompany } from '@/lib/job-hunter/crawlers/workday'
+import { crawlGreenhouseCompany } from '@/lib/job-hunter/crawlers/greenhouse'
+import { crawlLeverCompany } from '@/lib/job-hunter/crawlers/lever'
+import { crawlAshbyCompany } from '@/lib/job-hunter/crawlers/ashby'
 import {
   generateJobHash,
-  jobExists,
+  jobsExistByHash,
   saveJob,
 } from '@/lib/job-hunter/job-storage'
 import { getEnabledJobSources } from '@/lib/job-hunter/job-sources'
-import type { JobSource } from '@/lib/job-hunter/job-types'
+import type { JobHunterJob, JobSource } from '@/lib/job-hunter/job-types'
 import { explainJobMatch } from '@/lib/job-hunter/keywords'
 import { sendDiscordNotification } from '@/lib/job-hunter/discord'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 
-type CrawledJob = NonNullable<
-  Awaited<ReturnType<typeof crawlWorkdayCompany>>[number]
->
+type CrawledJob = Omit<JobHunterJob, 'id'>
 
 type CrawlError = { title: string; error: string }
 
@@ -60,7 +61,8 @@ const MAX_SOURCES_PER_RUN = 5
 const SOURCE_CRAWL_DELAY_MS = 2_000
 const DISCORD_NOTIFICATION_DELAY_MS = 750
 const ERROR_EXAMPLE_LIMIT = 3
-const SUPPORTED_ATS_PLATFORMS = new Set(['workday'])
+const MAX_AGE_DAYS = 14
+const SUPPORTED_ATS_PLATFORMS = new Set(['workday', 'greenhouse', 'lever', 'ashby'])
 
 function isAuthorized(request: Request) {
   const cronSecret = process.env.CRON_SECRET
@@ -125,6 +127,29 @@ function delay(ms: number) {
   return new Promise((resolve) => {
     setTimeout(resolve, ms)
   })
+}
+
+async function crawlJobSource(source: JobSource): Promise<CrawledJob[]> {
+  const crawlOptions = { maxAgeDays: MAX_AGE_DAYS }
+  const config = { company: source.company, baseUrl: source.careers_url }
+
+  if (source.ats_platform === 'workday') {
+    return crawlWorkdayCompany(config, crawlOptions)
+  }
+
+  if (source.ats_platform === 'greenhouse') {
+    return crawlGreenhouseCompany({ ...config, ats_platform: 'greenhouse' }, crawlOptions)
+  }
+
+  if (source.ats_platform === 'lever') {
+    return crawlLeverCompany({ ...config, ats_platform: 'lever' }, crawlOptions)
+  }
+
+  if (source.ats_platform === 'ashby') {
+    return crawlAshbyCompany({ ...config, ats_platform: 'ashby' }, crawlOptions)
+  }
+
+  return []
 }
 
 async function updateJobSource(
@@ -256,16 +281,16 @@ export async function GET(request: Request) {
 
       await updateJobSource(source.id, { last_crawled_at: crawledAt })
 
-      const jobs = await crawlWorkdayCompany({
-        company: source.company,
-        baseUrl: source.careers_url,
-      })
+      const jobs = await crawlJobSource(source)
       const validJobs = jobs.filter(
         (job): job is CrawledJob => job !== null && job !== undefined,
       )
 
       sourceDiscovered = jobs.length
       sourceIgnoredInvalid = jobs.length - validJobs.length
+
+      // Keyword filter and collect matched jobs
+      const matchedJobs: { job: CrawledJob; title: string; company: string }[] = []
 
       for (const job of validJobs) {
         const title = job.title || 'Untitled job'
@@ -297,17 +322,29 @@ export async function GET(request: Request) {
           })
         }
 
+        matchedJobs.push({ job, title, company })
+      }
+
+      // Batch existence check for all matched jobs; zip with hash upfront to
+      // keep job and hash together through the save/notify loop.
+      const matchedJobsWithHash = await Promise.all(
+        matchedJobs.map(async (entry) => ({
+          ...entry,
+          job_hash: await generateJobHash(entry.job),
+        })),
+      )
+      const existingHashes = await jobsExistByHash(
+        matchedJobsWithHash.map((e) => e.job_hash),
+      )
+
+      for (const { job, title, job_hash } of matchedJobsWithHash) {
+        if (existingHashes.has(job_hash)) {
+          sourceSkipped += 1
+          continue
+        }
+
         try {
-          const job_hash = await generateJobHash(job)
-          const jobWithHash = { ...job, job_hash }
-          const exists = await jobExists(job_hash)
-
-          if (exists) {
-            sourceSkipped += 1
-            continue
-          }
-
-          const savedJob = await saveJob(jobWithHash)
+          const savedJob = await saveJob({ ...job, job_hash })
           sourceInserted += 1
 
           if (notificationAttempts > 0) {
