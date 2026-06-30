@@ -2,11 +2,13 @@ import { crawlGreenhouseCompany } from '@/lib/job-hunter/crawlers/greenhouse'
 import { crawlWorkdayCompany } from '@/lib/job-hunter/crawlers/workday'
 import { crawlLeverCompany } from '@/lib/job-hunter/crawlers/lever'
 import { crawlAshbyCompany } from '@/lib/job-hunter/crawlers/ashby'
+import { crawlOracleCloudCompany } from '@/lib/job-hunter/crawlers/oraclecloud'
+import { crawlDayforceCompany } from '@/lib/job-hunter/crawlers/dayforce'
+import { crawlUltiproCompany } from '@/lib/job-hunter/crawlers/ultipro'
 import { sendDiscordNotification } from '@/lib/job-hunter/discord'
 import { explainJobMatch } from '@/lib/job-hunter/keywords'
 import {
   generateJobHash,
-  jobExists,
   saveJob,
 } from '@/lib/job-hunter/job-storage'
 import {
@@ -21,6 +23,9 @@ type IntakeJob = NonNullable<
   | Awaited<ReturnType<typeof crawlGreenhouseCompany>>[number]
   | Awaited<ReturnType<typeof crawlLeverCompany>>[number]
   | Awaited<ReturnType<typeof crawlAshbyCompany>>[number]
+  | Awaited<ReturnType<typeof crawlOracleCloudCompany>>[number]
+  | Awaited<ReturnType<typeof crawlDayforceCompany>>[number]
+  | Awaited<ReturnType<typeof crawlUltiproCompany>>[number]
 >
 
 export type SourceIntakeError = {
@@ -62,6 +67,7 @@ export type SourceIntakeResult = {
 type SourceIntakeOptions = {
   crawlDelayMs?: number
   notificationDelayMs?: number
+  maxAgeDays?: number
 }
 
 function serializeError(error: unknown) {
@@ -146,12 +152,16 @@ async function saveSourceIfNew(source: JobSourceCandidate) {
   }
 }
 
-async function crawlSource(source: JobSourceCandidate) {
+async function crawlSource(
+  source: JobSourceCandidate,
+  options: SourceIntakeOptions = {},
+) {
+  const crawlOptions = { maxAgeDays: options.maxAgeDays }
   if (source.ats_platform === 'workday') {
     return crawlWorkdayCompany({
       company: source.company,
       baseUrl: source.careers_url,
-    })
+    }, crawlOptions)
   }
 
   if (source.ats_platform === 'greenhouse') {
@@ -159,7 +169,7 @@ async function crawlSource(source: JobSourceCandidate) {
       company: source.company,
       baseUrl: source.careers_url,
       ats_platform: 'greenhouse',
-    })
+    }, crawlOptions)
   }
 
   if (source.ats_platform === 'lever') {
@@ -167,7 +177,7 @@ async function crawlSource(source: JobSourceCandidate) {
       company: source.company,
       baseUrl: source.careers_url,
       ats_platform: 'lever',
-    })
+    }, crawlOptions)
   }
 
   if (source.ats_platform === 'ashby') {
@@ -175,7 +185,31 @@ async function crawlSource(source: JobSourceCandidate) {
       company: source.company,
       baseUrl: source.careers_url,
       ats_platform: 'ashby',
-    })
+    }, crawlOptions)
+  }
+
+  if (source.ats_platform === 'oraclecloud') {
+    return crawlOracleCloudCompany({
+      company: source.company,
+      baseUrl: source.careers_url,
+      ats_platform: 'oraclecloud',
+    }, crawlOptions)
+  }
+
+  if (source.ats_platform === 'dayforce') {
+    return crawlDayforceCompany({
+      company: source.company,
+      baseUrl: source.careers_url,
+      ats_platform: 'dayforce',
+    }, crawlOptions)
+  }
+
+  if (source.ats_platform === 'ultipro') {
+    return crawlUltiproCompany({
+      company: source.company,
+      baseUrl: source.careers_url,
+      ats_platform: 'ultipro',
+    }, crawlOptions)
   }
 
   return []
@@ -258,15 +292,6 @@ export async function intakeJobSourceUrls(
       continue
     }
 
-    if (
-      normalizedSource.ats_platform !== 'workday' &&
-      normalizedSource.ats_platform !== 'greenhouse' &&
-      normalizedSource.ats_platform !== 'lever' &&
-      normalizedSource.ats_platform !== 'ashby'
-    ) {
-      continue
-    }
-
     if (rateLimitedSources.has(normalizedSource.careers_url)) {
       sourceResult.rateLimited = true
       sourceResult.failed += 1
@@ -287,7 +312,7 @@ export async function intakeJobSourceUrls(
 
       crawledSources += 1
 
-      const jobs = await crawlSource(normalizedSource)
+      const jobs = await crawlSource(normalizedSource, options)
       const validJobs = jobs.filter(
         (job): job is IntakeJob => job !== null && job !== undefined,
       )

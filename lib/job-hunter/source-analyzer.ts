@@ -1,4 +1,11 @@
-type AtsPlatform = 'workday' | 'greenhouse' | 'lever' | 'ashby'
+type AtsPlatform =
+  | 'workday'
+  | 'greenhouse'
+  | 'lever'
+  | 'ashby'
+  | 'oraclecloud'
+  | 'dayforce'
+  | 'ultipro'
 
 export type JobSourceCandidate = {
   company: string
@@ -36,6 +43,44 @@ export function normalizeJobSourceCareersUrl(value: string) {
     url.pathname = normalizedParts.length > 0
       ? `/${normalizedParts.join('/')}`
       : ''
+  }
+
+  if (url.hostname.includes('oraclecloud.com')) {
+    const pathParts = url.pathname.split('/').filter(Boolean)
+    const candidateExperienceIndex = pathParts.findIndex(
+      (part) => part === 'CandidateExperience',
+    )
+    const sitesIndex = pathParts.findIndex((part) => part === 'sites')
+    const locale = pathParts[candidateExperienceIndex + 1] ?? 'en'
+    const siteNumber = sitesIndex === -1 ? '' : pathParts[sitesIndex + 1] ?? ''
+
+    if (candidateExperienceIndex !== -1 && siteNumber) {
+      url.pathname = `/hcmUI/CandidateExperience/${locale}/sites/${siteNumber}/jobs`
+    }
+  }
+
+  if (url.hostname.includes('dayforcehcm.com')) {
+    const pathParts = url.pathname.split('/').filter(Boolean)
+
+    if (pathParts.length >= 3) {
+      url.pathname = `/${pathParts.slice(0, 3).join('/')}`
+    }
+  }
+
+  if (
+    url.hostname.includes('ultipro.com') ||
+    url.hostname.includes('ultipro.ca')
+  ) {
+    const pathParts = url.pathname.split('/').filter(Boolean)
+    const jobBoardIndex = pathParts.findIndex(
+      (part) => part.toLowerCase() === 'jobboard',
+    )
+    const companyCode = pathParts[0] ?? ''
+    const boardId = jobBoardIndex === -1 ? '' : pathParts[jobBoardIndex + 1] ?? ''
+
+    if (companyCode && boardId) {
+      url.pathname = `/${companyCode}/JobBoard/${boardId}`
+    }
   }
 
   url.pathname = url.pathname.replace(/\/+$/, '')
@@ -120,6 +165,64 @@ function analyzeAshbyUrl(url: URL): JobSourceCandidate {
   }
 }
 
+function analyzeOracleCloudUrl(url: URL): JobSourceCandidate {
+  const pathParts = url.pathname.split('/').filter(Boolean)
+  const sitesIndex = pathParts.findIndex((part) => part === 'sites')
+  const siteNumber = sitesIndex === -1 ? '' : pathParts[sitesIndex + 1] ?? ''
+  const company = prettifyCompany(url.hostname.split('.fa')[0] ?? '')
+  const careersUrl = normalizeJobSourceCareersUrl(url.toString())
+
+  return {
+    company,
+    ats_platform: 'oraclecloud',
+    careers_url: careersUrl,
+    original_url: url.toString(),
+    confidence: siteNumber ? 0.95 : 0.7,
+    notes: siteNumber
+      ? 'Detected Oracle Cloud Candidate Experience site and normalized to the jobs listing.'
+      : 'Detected Oracle Cloud careers URL.',
+  }
+}
+
+function analyzeDayforceUrl(url: URL): JobSourceCandidate {
+  const pathParts = url.pathname.split('/').filter(Boolean)
+  const companySlug = pathParts[1] ?? url.hostname.split('.')[0] ?? ''
+  const boardCode = pathParts[2] ?? ''
+  const careersUrl = normalizeJobSourceCareersUrl(url.toString())
+
+  return {
+    company: prettifyCompany(companySlug),
+    ats_platform: 'dayforce',
+    careers_url: careersUrl,
+    original_url: url.toString(),
+    confidence: companySlug && boardCode ? 0.95 : 0.7,
+    notes: boardCode
+      ? 'Detected Dayforce careers site and normalized to the board listing.'
+      : 'Detected Dayforce careers URL.',
+  }
+}
+
+function analyzeUltiproUrl(url: URL): JobSourceCandidate {
+  const pathParts = url.pathname.split('/').filter(Boolean)
+  const companyCode = pathParts[0] ?? ''
+  const jobBoardIndex = pathParts.findIndex(
+    (part) => part.toLowerCase() === 'jobboard',
+  )
+  const boardId = jobBoardIndex === -1 ? '' : pathParts[jobBoardIndex + 1] ?? ''
+  const careersUrl = normalizeJobSourceCareersUrl(url.toString())
+
+  return {
+    company: prettifyCompany(companyCode),
+    ats_platform: 'ultipro',
+    careers_url: careersUrl,
+    original_url: url.toString(),
+    confidence: companyCode && boardId ? 0.95 : 0.7,
+    notes: boardId
+      ? 'Detected UltiPro job board and normalized to the board root.'
+      : 'Detected UltiPro careers URL.',
+  }
+}
+
 export function analyzeJobSourceUrl(url: string) {
   try {
     const parsedUrl = new URL(url)
@@ -140,6 +243,18 @@ export function analyzeJobSourceUrl(url: string) {
     // Use endsWith to prevent substring-match bypass (e.g. evilashbyhq.com)
     if (hostname === 'jobs.ashbyhq.com' || hostname.endsWith('.ashbyhq.com')) {
       return analyzeAshbyUrl(parsedUrl)
+    }
+
+    if (hostname.includes('oraclecloud.com')) {
+      return analyzeOracleCloudUrl(parsedUrl)
+    }
+
+    if (hostname.includes('dayforcehcm.com')) {
+      return analyzeDayforceUrl(parsedUrl)
+    }
+
+    if (hostname.includes('ultipro.com') || hostname.includes('ultipro.ca')) {
+      return analyzeUltiproUrl(parsedUrl)
     }
 
     return null

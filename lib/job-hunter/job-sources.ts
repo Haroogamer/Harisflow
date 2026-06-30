@@ -8,6 +8,7 @@ export async function getEnabledJobSources() {
     .eq('enabled', true)
     .eq('source_status', 'active')
     .order('last_crawled_at', { ascending: true, nullsFirst: true })
+    .order('last_job_found_at', { ascending: false, nullsFirst: false })
 
   if (error) {
     throw error

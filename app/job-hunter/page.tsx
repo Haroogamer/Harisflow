@@ -3,6 +3,20 @@
 import { useEffect, useState } from 'react'
 import type { JobHunterJob } from '@/lib/job-hunter/job-types'
 
+function formatDate(value: string | null) {
+  if (!value) {
+    return 'Unknown'
+  }
+
+  const date = new Date(value)
+
+  if (Number.isNaN(date.getTime())) {
+    return value
+  }
+
+  return date.toLocaleString()
+}
+
 export default function JobHunterPage() {
   const [jobs, setJobs] = useState<JobHunterJob[]>([])
   const [error, setError] = useState('')
@@ -64,7 +78,12 @@ export default function JobHunterPage() {
           <p><strong>Location:</strong> {job.location}</p>
           <p><strong>ATS Platform:</strong> {job.ats_platform}</p>
           <p><strong>Status:</strong> {job.status}</p>
-          <p><strong>Date Discovered:</strong> {job.date_discovered}</p>
+          <p>
+            <strong>Freshness:</strong>{' '}
+            {formatDate(job.date_posted ?? job.date_discovered)}
+          </p>
+          <p><strong>Date Posted:</strong> {formatDate(job.date_posted)}</p>
+          <p><strong>Date Discovered:</strong> {formatDate(job.date_discovered)}</p>
           <a href={job.job_url} target="_blank" rel="noreferrer">
             Apply
           </a>
