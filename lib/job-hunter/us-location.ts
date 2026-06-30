@@ -55,3 +55,14 @@ export const US_STATE_NAMES = [
 
 export const US_STATE_ABBREVIATIONS_PATTERN =
   /\b[a-z]+(?:[ .'-][a-z]+)*,\s*(al|ak|az|ar|ca|co|ct|de|fl|ga|hi|ia|id|il|in|ks|ky|la|ma|md|me|mi|mn|mo|ms|mt|nc|nd|ne|nh|nj|nm|nv|ny|oh|ok|or|pa|ri|sc|sd|tn|tx|ut|va|vt|wa|wi|wv|wy|dc)\b/i
+
+export function hasUsStateIndicator(
+  text: string,
+  includesTerm: (text: string, term: string) => boolean,
+) {
+  return (
+    US_STATE_NAMES.some((term) =>
+      includesTerm(text, term),
+    ) || US_STATE_ABBREVIATIONS_PATTERN.test(text)
+  )
+}

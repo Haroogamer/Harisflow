@@ -1,6 +1,5 @@
 import {
-  US_STATE_ABBREVIATIONS_PATTERN,
-  US_STATE_NAMES,
+  hasUsStateIndicator,
 } from '@/lib/job-hunter/us-location'
 
 export const SERVICE_NOW_KEYWORDS = [
@@ -144,14 +143,6 @@ function includesTerm(text: string, term: string) {
   return termPattern.test(text)
 }
 
-function hasUsStateIndicator(text: string) {
-  return (
-    US_STATE_NAMES.some((term) =>
-      includesTerm(text, term),
-    ) || US_STATE_ABBREVIATIONS_PATTERN.test(text)
-  )
-}
-
 function normalizeHeading(value: string) {
   return value
     .toLowerCase()
@@ -276,7 +267,7 @@ export function isAllowedLocation(job: KeywordMatchJob) {
   return (
     ALLOWED_LOCATION_TERMS.some((term) =>
       includesTerm(locationText, term.value),
-    ) || hasUsStateIndicator(locationText)
+    ) || hasUsStateIndicator(locationText, includesTerm)
   )
 }
 

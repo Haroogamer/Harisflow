@@ -1,6 +1,5 @@
 import {
-  US_STATE_ABBREVIATIONS_PATTERN,
-  US_STATE_NAMES,
+  hasUsStateIndicator,
 } from '@/lib/job-hunter/us-location'
 
 const SERPAPI_SEARCH_URL = 'https://serpapi.com/search.json'
@@ -67,14 +66,6 @@ function includesLocationTerm(text: string, term: string) {
   return termPattern.test(text)
 }
 
-function hasUsStateIndicator(text: string) {
-  return (
-    US_STATE_NAMES.some((term) =>
-      includesLocationTerm(text, term),
-    ) || US_STATE_ABBREVIATIONS_PATTERN.test(text)
-  )
-}
-
 function resultMatchesAllowedLocation(result: SerpApiOrganicResult) {
   const searchableText = [
     result.title,
@@ -96,7 +87,7 @@ function resultMatchesAllowedLocation(result: SerpApiOrganicResult) {
   return (
     ALLOWED_LOCATION_TERMS.some((term) =>
       includesLocationTerm(searchableText, term),
-    ) || hasUsStateIndicator(searchableText)
+    ) || hasUsStateIndicator(searchableText, includesLocationTerm)
   )
 }
 
