@@ -1,10 +1,12 @@
 import { createHash } from 'crypto'
 import type { JobHunterJob } from '@/lib/job-hunter/job-types'
 import { type CrawlOptions, isJobRecent } from '@/lib/job-hunter/crawlers/types'
+import { RECENT_JOB_MAX_AGE_DAYS } from '@/lib/job-hunter/constants'
 
 const ATS_PLATFORM = 'dayforce'
 const REQUEST_USER_AGENT = 'Mozilla/5.0 (compatible; Harisflow/1.0)'
 const MAX_PAGES = 20
+const DAYFORCE_HOST_PATTERN = /^(?:jobs|[a-z0-9-]+)\.dayforcehcm\.com$/i
 
 export type DayforceCompanyConfig = {
   company: string
@@ -41,17 +43,24 @@ type DayforceSearchResponse = {
 
 function getDayforceSiteConfig(baseUrl: string) {
   const url = new URL(baseUrl)
+  const hostname = url.hostname.toLowerCase()
   const pathParts = url.pathname.split('/').filter(Boolean)
   const cultureCode = pathParts[0] ?? ''
   const clientNamespace = pathParts[1] ?? ''
   const jobBoardCode = pathParts[2] ?? ''
 
-  if (!cultureCode || !clientNamespace || !jobBoardCode) {
+  if (
+    url.protocol !== 'https:' ||
+    !DAYFORCE_HOST_PATTERN.test(hostname) ||
+    !cultureCode ||
+    !clientNamespace ||
+    !jobBoardCode
+  ) {
     throw new Error(`Invalid Dayforce careers URL: ${baseUrl}`)
   }
 
   return {
-    origin: url.origin,
+    origin: `https://${hostname}`,
     cultureCode,
     clientNamespace,
     jobBoardCode,
@@ -242,7 +251,7 @@ export async function crawlDayforceCompany(
   config: DayforceCompanyConfig,
   options: CrawlOptions = {},
 ) {
-  const maxAgeDays = options.maxAgeDays ?? 14
+  const maxAgeDays = options.maxAgeDays ?? RECENT_JOB_MAX_AGE_DAYS
   const jobs = await fetchDayforceJobs(config)
   const recentJobs = jobs.filter((job) =>
     isJobRecent(job.postingStartTimestampUTC, maxAgeDays),

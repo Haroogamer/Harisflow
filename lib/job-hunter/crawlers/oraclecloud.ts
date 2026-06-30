@@ -1,10 +1,13 @@
 import { createHash } from 'crypto'
 import type { JobHunterJob } from '@/lib/job-hunter/job-types'
 import { type CrawlOptions, isJobRecent } from '@/lib/job-hunter/crawlers/types'
+import { RECENT_JOB_MAX_AGE_DAYS } from '@/lib/job-hunter/constants'
 
 const ATS_PLATFORM = 'oraclecloud'
 const PAGE_SIZE = 100
 const MAX_PAGES = 10
+const ORACLE_CLOUD_HOST_PATTERN =
+  /^[a-z0-9-]+\.fa(?:\.[a-z0-9-]+)?\.oraclecloud\.com$/i
 const REQUEST_HEADERS = {
   Accept: 'application/json',
   'User-Agent': 'Mozilla/5.0 (compatible; Harisflow/1.0)',
@@ -62,6 +65,7 @@ type OracleDetailResponse = {
 
 function getOracleSiteConfig(baseUrl: string) {
   const url = new URL(baseUrl)
+  const hostname = url.hostname.toLowerCase()
   const pathParts = url.pathname.split('/').filter(Boolean)
   const candidateExperienceIndex = pathParts.findIndex(
     (part) => part === 'CandidateExperience',
@@ -69,7 +73,12 @@ function getOracleSiteConfig(baseUrl: string) {
   const sitesIndex = pathParts.findIndex((part) => part === 'sites')
   const siteNumber = sitesIndex === -1 ? '' : pathParts[sitesIndex + 1] ?? ''
 
-  if (candidateExperienceIndex === -1 || !siteNumber) {
+  if (
+    url.protocol !== 'https:' ||
+    !ORACLE_CLOUD_HOST_PATTERN.test(hostname) ||
+    candidateExperienceIndex === -1 ||
+    !siteNumber
+  ) {
     throw new Error(`Invalid Oracle Cloud careers URL: ${baseUrl}`)
   }
 
@@ -77,7 +86,7 @@ function getOracleSiteConfig(baseUrl: string) {
   const language = locale.split('-')[0] || 'en'
 
   return {
-    origin: url.origin,
+    origin: `https://${hostname}`,
     siteNumber,
     locale,
     language,
@@ -115,9 +124,10 @@ function buildLocation(
   primaryLocation?: string,
   secondaryLocations?: OracleSecondaryLocation[],
 ) {
-  const locations = [primaryLocation, ...(secondaryLocations ?? []).map((item) => item.Name)]
-    .filter(Boolean)
-    .filter((value, index, values) => values.indexOf(value) === index)
+  const locations = Array.from(new Set(
+    [primaryLocation, ...(secondaryLocations ?? []).map((item) => item.Name)]
+      .filter(Boolean),
+  ))
 
   return locations.join('; ') || 'Not specified'
 }
@@ -253,7 +263,7 @@ export async function crawlOracleCloudCompany(
   config: OracleCloudCompanyConfig,
   options: CrawlOptions = {},
 ) {
-  const maxAgeDays = options.maxAgeDays ?? 14
+  const maxAgeDays = options.maxAgeDays ?? RECENT_JOB_MAX_AGE_DAYS
   const listings = await fetchOracleCloudJobList(config.baseUrl)
   const recentListings = listings.filter((listing) =>
     isJobRecent(listing.PostedDate, maxAgeDays),

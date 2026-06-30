@@ -1,11 +1,13 @@
 import { createHash } from 'crypto'
 import type { JobHunterJob } from '@/lib/job-hunter/job-types'
 import { type CrawlOptions, isJobRecent } from '@/lib/job-hunter/crawlers/types'
+import { RECENT_JOB_MAX_AGE_DAYS } from '@/lib/job-hunter/constants'
 
 const ATS_PLATFORM = 'ultipro'
 const REQUEST_USER_AGENT = 'Mozilla/5.0 (compatible; Harisflow/1.0)'
 const PAGE_SIZE = 50
 const MAX_PAGES = 20
+const ULTIPRO_HOST_PATTERN = /^recruiting(?:2)?\.ultipro\.(?:com|ca)$/i
 const SEARCH_BODY = {
   opportunitySearch: {
     Top: PAGE_SIZE,
@@ -77,6 +79,7 @@ type UltiproDetailResponse = {
 
 function getUltiproSiteConfig(baseUrl: string) {
   const url = new URL(baseUrl)
+  const hostname = url.hostname.toLowerCase()
   const pathParts = url.pathname.split('/').filter(Boolean)
   const companyCode = pathParts[0] ?? ''
   const jobBoardIndex = pathParts.findIndex(
@@ -84,12 +87,17 @@ function getUltiproSiteConfig(baseUrl: string) {
   )
   const boardId = jobBoardIndex === -1 ? '' : pathParts[jobBoardIndex + 1] ?? ''
 
-  if (!companyCode || !boardId) {
+  if (
+    url.protocol !== 'https:' ||
+    !ULTIPRO_HOST_PATTERN.test(hostname) ||
+    !companyCode ||
+    !boardId
+  ) {
     throw new Error(`Invalid UltiPro careers URL: ${baseUrl}`)
   }
 
   return {
-    origin: url.origin,
+    origin: `https://${hostname}`,
     companyCode,
     boardId,
   }
@@ -252,7 +260,7 @@ export async function crawlUltiproCompany(
   config: UltiproCompanyConfig,
   options: CrawlOptions = {},
 ) {
-  const maxAgeDays = options.maxAgeDays ?? 14
+  const maxAgeDays = options.maxAgeDays ?? RECENT_JOB_MAX_AGE_DAYS
   const opportunities = await fetchUltiproJobs(config)
   const recentOpportunities = opportunities.filter((opportunity) =>
     isJobRecent(opportunity.PostedDate, maxAgeDays),

@@ -7,6 +7,8 @@ export async function getEnabledJobSources() {
     .select('*')
     .eq('enabled', true)
     .eq('source_status', 'active')
+    // Crawl the stalest active sources first, then prefer sources with recent hits
+    // when multiple sources have the same crawl age.
     .order('last_crawled_at', { ascending: true, nullsFirst: true })
     .order('last_job_found_at', { ascending: false, nullsFirst: false })
 

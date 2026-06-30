@@ -7,6 +7,12 @@ type AtsPlatform =
   | 'dayforce'
   | 'ultipro'
 
+const DEFAULT_LOCALE = 'en'
+const ORACLE_CLOUD_HOST_PATTERN =
+  /^[a-z0-9-]+\.fa(?:\.[a-z0-9-]+)?\.oraclecloud\.com$/i
+const DAYFORCE_HOST_PATTERN = /^(?:jobs|[a-z0-9-]+)\.dayforcehcm\.com$/i
+const ULTIPRO_HOST_PATTERN = /^recruiting(?:2)?\.ultipro\.(?:com|ca)$/i
+
 export type JobSourceCandidate = {
   company: string
   ats_platform: AtsPlatform
@@ -22,6 +28,18 @@ function prettifyCompany(value: string) {
     .replace(/\s+/g, ' ')
     .trim()
     .replace(/\b\w/g, (letter) => letter.toUpperCase())
+}
+
+function isOracleCloudHost(hostname: string) {
+  return ORACLE_CLOUD_HOST_PATTERN.test(hostname)
+}
+
+function isDayforceHost(hostname: string) {
+  return DAYFORCE_HOST_PATTERN.test(hostname)
+}
+
+function isUltiproHost(hostname: string) {
+  return ULTIPRO_HOST_PATTERN.test(hostname)
 }
 
 export function normalizeJobSourceCareersUrl(value: string) {
@@ -45,13 +63,13 @@ export function normalizeJobSourceCareersUrl(value: string) {
       : ''
   }
 
-  if (url.hostname.includes('oraclecloud.com')) {
+  if (isOracleCloudHost(url.hostname)) {
     const pathParts = url.pathname.split('/').filter(Boolean)
     const candidateExperienceIndex = pathParts.findIndex(
       (part) => part === 'CandidateExperience',
     )
     const sitesIndex = pathParts.findIndex((part) => part === 'sites')
-    const locale = pathParts[candidateExperienceIndex + 1] ?? 'en'
+    const locale = pathParts[candidateExperienceIndex + 1] ?? DEFAULT_LOCALE
     const siteNumber = sitesIndex === -1 ? '' : pathParts[sitesIndex + 1] ?? ''
 
     if (candidateExperienceIndex !== -1 && siteNumber) {
@@ -59,7 +77,7 @@ export function normalizeJobSourceCareersUrl(value: string) {
     }
   }
 
-  if (url.hostname.includes('dayforcehcm.com')) {
+  if (isDayforceHost(url.hostname)) {
     const pathParts = url.pathname.split('/').filter(Boolean)
 
     if (pathParts.length >= 3) {
@@ -67,10 +85,7 @@ export function normalizeJobSourceCareersUrl(value: string) {
     }
   }
 
-  if (
-    url.hostname.includes('ultipro.com') ||
-    url.hostname.includes('ultipro.ca')
-  ) {
+  if (isUltiproHost(url.hostname)) {
     const pathParts = url.pathname.split('/').filter(Boolean)
     const jobBoardIndex = pathParts.findIndex(
       (part) => part.toLowerCase() === 'jobboard',
@@ -245,15 +260,15 @@ export function analyzeJobSourceUrl(url: string) {
       return analyzeAshbyUrl(parsedUrl)
     }
 
-    if (hostname.includes('oraclecloud.com')) {
+    if (isOracleCloudHost(hostname)) {
       return analyzeOracleCloudUrl(parsedUrl)
     }
 
-    if (hostname.includes('dayforcehcm.com')) {
+    if (isDayforceHost(hostname)) {
       return analyzeDayforceUrl(parsedUrl)
     }
 
-    if (hostname.includes('ultipro.com') || hostname.includes('ultipro.ca')) {
+    if (isUltiproHost(hostname)) {
       return analyzeUltiproUrl(parsedUrl)
     }
 

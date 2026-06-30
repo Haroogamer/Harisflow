@@ -16,6 +16,7 @@ import type { JobHunterJob, JobSource } from '@/lib/job-hunter/job-types'
 import { explainJobMatch } from '@/lib/job-hunter/keywords'
 import { sendDiscordNotification } from '@/lib/job-hunter/discord'
 import { supabaseAdmin } from '@/lib/supabase-admin'
+import { RECENT_JOB_MAX_AGE_DAYS } from '@/lib/job-hunter/constants'
 
 type CrawledJob = Omit<JobHunterJob, 'id'>
 
@@ -64,7 +65,7 @@ const MAX_SOURCES_PER_RUN = 15
 const SOURCE_CRAWL_DELAY_MS = 2_000
 const DISCORD_NOTIFICATION_DELAY_MS = 750
 const ERROR_EXAMPLE_LIMIT = 3
-const MAX_AGE_DAYS = 5
+const MAX_AGE_DAYS = RECENT_JOB_MAX_AGE_DAYS
 const SUPPORTED_ATS_PLATFORMS = new Set([
   'workday',
   'greenhouse',
