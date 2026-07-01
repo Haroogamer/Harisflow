@@ -123,7 +123,11 @@ function normalizeJob(
   const location = buildLocation(posting.location)
   const jobUrl =
     posting.ref ??
-    `https://careers.smartrecruiters.com/${companyId}/${posting.id}`
+    (posting.id
+      ? `https://careers.smartrecruiters.com/${companyId}/${posting.id}`
+      : undefined)
+
+  if (!jobUrl) return null
   const jobDescription =
     posting.jobAd?.sections?.jobDescription?.text?.trim() || null
 
@@ -157,5 +161,7 @@ export async function crawlSmartRecruitersCompany(
     isJobRecent(posting.releasedDate, maxAgeDays),
   )
 
-  return recentPostings.map((posting) => normalizeJob(config, posting))
+  return recentPostings
+    .map((posting) => normalizeJob(config, posting))
+    .filter((job) => job !== null)
 }
