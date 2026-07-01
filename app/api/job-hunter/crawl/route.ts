@@ -6,6 +6,8 @@ import { crawlAshbyCompany } from '@/lib/job-hunter/crawlers/ashby'
 import { crawlOracleCloudCompany } from '@/lib/job-hunter/crawlers/oraclecloud'
 import { crawlDayforceCompany } from '@/lib/job-hunter/crawlers/dayforce'
 import { crawlUltiproCompany } from '@/lib/job-hunter/crawlers/ultipro'
+import { crawlSmartRecruitersCompany } from '@/lib/job-hunter/crawlers/smartrecruiters'
+import { crawlIcimsCompany } from '@/lib/job-hunter/crawlers/icims'
 import {
   generateJobHash,
   jobsExistByHash,
@@ -74,6 +76,8 @@ const SUPPORTED_ATS_PLATFORMS = new Set([
   'oraclecloud',
   'dayforce',
   'ultipro',
+  'smartrecruiters',
+  'icims',
 ])
 
 function isAuthorized(request: Request) {
@@ -178,6 +182,20 @@ async function crawlJobSource(source: JobSource): Promise<CrawledJob[]> {
   if (source.ats_platform === 'ultipro') {
     return crawlUltiproCompany(
       { ...config, ats_platform: 'ultipro' },
+      crawlOptions,
+    )
+  }
+
+  if (source.ats_platform === 'smartrecruiters') {
+    return crawlSmartRecruitersCompany(
+      { ...config, ats_platform: 'smartrecruiters' },
+      crawlOptions,
+    )
+  }
+
+  if (source.ats_platform === 'icims') {
+    return crawlIcimsCompany(
+      { ...config, ats_platform: 'icims' },
       crawlOptions,
     )
   }

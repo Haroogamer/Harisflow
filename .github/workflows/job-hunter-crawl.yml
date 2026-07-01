@@ -4,12 +4,14 @@ on:
   schedule:
     - cron: "*/30 * * * *"
     - cron: "17 8 * * *"
+    - cron: "17 20 * * *"
   workflow_dispatch:
 
 jobs:
   monitor-saved-sources:
     if: github.event_name == 'workflow_dispatch' || github.event.schedule == '*/30 * * * *'
     runs-on: ubuntu-latest
+    permissions: {}
     steps:
       - name: Call crawl endpoint
         run: |
@@ -26,8 +28,9 @@ jobs:
           fi
 
   discover-internet:
-    if: github.event_name == 'workflow_dispatch' || github.event.schedule == '17 8 * * *'
+    if: github.event_name == 'workflow_dispatch' || github.event.schedule == '17 8 * * *' || github.event.schedule == '17 20 * * *'
     runs-on: ubuntu-latest
+    permissions: {}
     steps:
       - name: Call internet discovery endpoint
         run: |

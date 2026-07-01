@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { searchServiceNowJobUrls } from '@/lib/job-hunter/discovery-providers/search'
+import { searchServiceNowJobUrls, searchGoogleJobsForServiceNow } from '@/lib/job-hunter/discovery-providers/search'
 import { intakeJobSourceUrls } from '@/lib/job-hunter/source-intake'
 import { RECENT_JOB_MAX_AGE_DAYS } from '@/lib/job-hunter/constants'
 
@@ -82,8 +82,13 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const urls = await searchServiceNowJobUrls()
-  const urlsToProcess = urls.slice(0, MAX_PROCESSED_SOURCES)
+  const [siteSearchUrls, googleJobsUrls] = await Promise.all([
+    searchServiceNowJobUrls(),
+    searchGoogleJobsForServiceNow(),
+  ])
+
+  const allDiscoveredUrls = Array.from(new Set([...siteSearchUrls, ...googleJobsUrls]))
+  const urlsToProcess = allDiscoveredUrls.slice(0, MAX_PROCESSED_SOURCES)
   const result = await intakeJobSourceUrls(urlsToProcess, {
     crawlDelayMs: SOURCE_CRAWL_DELAY_MS,
     notificationDelayMs: DISCORD_NOTIFICATION_DELAY_MS,
@@ -103,7 +108,9 @@ export async function GET(request: Request) {
   }))
 
   return NextResponse.json({
-    urlsFound: urls.length,
+    urlsFound: allDiscoveredUrls.length,
+    siteSearchUrlsFound: siteSearchUrls.length,
+    googleJobsUrlsFound: googleJobsUrls.length,
     maxProcessedSources: MAX_PROCESSED_SOURCES,
     processedSources: result.sourcesAnalyzed,
     sourcesInserted: result.sourcesInserted,
