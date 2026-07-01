@@ -52,11 +52,25 @@ export function normalizeJobSourceCareersUrl(value: string) {
   const pathParts = url.pathname.split('/').filter(Boolean)
 
   if (url.hostname.includes('myworkdayjobs.com')) {
-    const jobIndex = pathParts.findIndex(
-      (part) => part.toLowerCase() === 'job',
-    )
-    const normalizedParts =
-      jobIndex === -1 ? pathParts : pathParts.slice(0, jobIndex)
+    const localePattern = /^[a-z]{2}(?:-[a-z]{2})?$/i
+    const firstPartLooksLikeLocale = localePattern.test(pathParts[0] ?? '')
+    const markerIndex = pathParts.findIndex((part) => {
+      const lowered = part.toLowerCase()
+      return lowered === 'job' || lowered === 'details'
+    })
+    let normalizedParts = pathParts
+
+    if (markerIndex > 0) {
+      normalizedParts = pathParts.slice(0, markerIndex)
+    } else if (
+      firstPartLooksLikeLocale &&
+      pathParts.length >= 2 &&
+      !['job', 'details'].includes((pathParts[1] ?? '').toLowerCase())
+    ) {
+      normalizedParts = pathParts.slice(0, 2)
+    } else if (pathParts.length > 0) {
+      normalizedParts = pathParts.slice(0, 1)
+    }
 
     url.pathname = normalizedParts.length > 0
       ? `/${normalizedParts.join('/')}`
