@@ -120,6 +120,9 @@ async function fetchIcimsJobs(baseUrl: string) {
 
   if (!contentType.includes('application/json')) {
     // iCIMS returned HTML instead of JSON; this portal version is not supported
+    console.warn(
+      `[iCIMS] Portal returned non-JSON response (content-type: ${contentType}) for ${baseUrl} — skipping`,
+    )
     return []
   }
 
