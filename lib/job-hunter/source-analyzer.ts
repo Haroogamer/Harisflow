@@ -6,12 +6,16 @@ type AtsPlatform =
   | 'oraclecloud'
   | 'dayforce'
   | 'ultipro'
+  | 'smartrecruiters'
+  | 'icims'
 
 const DEFAULT_LOCALE = 'en'
 const ORACLE_CLOUD_HOST_PATTERN =
   /^[a-z0-9-]+\.fa(?:\.[a-z0-9-]+)?\.oraclecloud\.com$/i
 const DAYFORCE_HOSTNAME = 'jobs.dayforcehcm.com'
 const ULTIPRO_HOST_PATTERN = /^recruiting(?:2)?\.ultipro\.(?:com|ca)$/i
+const SMARTRECRUITERS_HOSTNAME = 'careers.smartrecruiters.com'
+const ICIMS_HOST_PATTERN = /^[a-z0-9-]+\.icims\.com$/i
 
 export type JobSourceCandidate = {
   company: string
@@ -40,6 +44,14 @@ function isDayforceHost(hostname: string) {
 
 function isUltiproHost(hostname: string) {
   return ULTIPRO_HOST_PATTERN.test(hostname)
+}
+
+function isSmartRecruitersHost(hostname: string) {
+  return hostname === SMARTRECRUITERS_HOSTNAME
+}
+
+function isIcimsHost(hostname: string) {
+  return ICIMS_HOST_PATTERN.test(hostname)
 }
 
 export function normalizeJobSourceCareersUrl(value: string) {
@@ -110,6 +122,19 @@ export function normalizeJobSourceCareersUrl(value: string) {
     if (companyCode && boardId) {
       url.pathname = `/${companyCode}/JobBoard/${boardId}`
     }
+  }
+
+  if (isSmartRecruitersHost(url.hostname)) {
+    const pathParts = url.pathname.split('/').filter(Boolean)
+    // Normalize to /{companyId} — strip any job-level path segments
+    const companyId = pathParts[0] ?? ''
+
+    url.pathname = companyId ? `/${companyId}` : ''
+  }
+
+  if (isIcimsHost(url.hostname)) {
+    // Normalize to /jobs/search — strip individual job ID segments
+    url.pathname = '/jobs/search'
   }
 
   url.pathname = url.pathname.replace(/\/+$/, '')
@@ -252,6 +277,42 @@ function analyzeUltiproUrl(url: URL): JobSourceCandidate {
   }
 }
 
+function analyzeSmartRecruitersUrl(url: URL): JobSourceCandidate {
+  const pathParts = url.pathname.split('/').filter(Boolean)
+  const companyId = pathParts[0] ?? ''
+  const company = prettifyCompany(companyId)
+  const careersUrl = normalizeJobSourceCareersUrl(url.toString())
+  const isPostingUrl = pathParts.length > 1
+
+  return {
+    company,
+    ats_platform: 'smartrecruiters',
+    careers_url: careersUrl,
+    original_url: url.toString(),
+    confidence: companyId ? 0.95 : 0.7,
+    notes: isPostingUrl
+      ? 'Detected SmartRecruiters job URL and normalized to the careers board.'
+      : 'Detected SmartRecruiters careers board URL.',
+  }
+}
+
+function analyzeIcimsUrl(url: URL): JobSourceCandidate {
+  const hostname = url.hostname.toLowerCase()
+  // Extract company name from subdomain: {company}.icims.com
+  const companySlug = hostname.replace(/\.icims\.com$/, '')
+  const company = prettifyCompany(companySlug)
+  const careersUrl = normalizeJobSourceCareersUrl(url.toString())
+
+  return {
+    company,
+    ats_platform: 'icims',
+    careers_url: careersUrl,
+    original_url: url.toString(),
+    confidence: companySlug ? 0.9 : 0.7,
+    notes: 'Detected iCIMS job portal and normalized to the job search listing.',
+  }
+}
+
 export function analyzeJobSourceUrl(url: string) {
   try {
     const parsedUrl = new URL(url)
@@ -284,6 +345,14 @@ export function analyzeJobSourceUrl(url: string) {
 
     if (isUltiproHost(hostname)) {
       return analyzeUltiproUrl(parsedUrl)
+    }
+
+    if (isSmartRecruitersHost(hostname)) {
+      return analyzeSmartRecruitersUrl(parsedUrl)
+    }
+
+    if (isIcimsHost(hostname)) {
+      return analyzeIcimsUrl(parsedUrl)
     }
 
     return null
