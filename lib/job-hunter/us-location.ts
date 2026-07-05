@@ -73,7 +73,7 @@ export const CANADA_PROVINCE_NAMES = [
 ]
 
 export const CANADA_PROVINCE_ABBREVIATIONS_PATTERN =
-  /\b[A-Za-z]+(?:[ .'-][A-Za-z]+)*,\s*(ab|bc|mb|nb|nl|ns|nt|nu|on|pe|qc|sk|yk|yt)\b/i
+  /\b[A-Za-z]+(?:[ .'-][A-Za-z]+)*,\s*(ab|bc|mb|nb|nl|ns|nt|nu|on|pe|qc|sk|yt)\b/i
 
 export const NORTH_AMERICA_LOCATION_TERMS = [
   'united states',
