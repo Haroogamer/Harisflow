@@ -47,6 +47,9 @@ const SOURCE_CRAWL_DELAY_MS = 2_000
 const DISCORD_NOTIFICATION_DELAY_MS = 750
 const ERROR_EXAMPLE_LIMIT = 3
 const MAX_AGE_DAYS = RECENT_JOB_MAX_AGE_DAYS
+// Supports relative Google Jobs timestamps like "5 days ago" and "2+ weeks ago".
+const RELATIVE_POSTED_AT_PATTERN =
+  /(\d+)\+?\s+(minute|hour|day|week|month|year)s?\s+ago/
 const AGGREGATOR_HOST_KEYWORDS = [
   'linkedin',
   'indeed',
@@ -143,7 +146,7 @@ function parseRelativePostedAt(value: string | null) {
     return yesterday.toISOString()
   }
 
-  const match = normalizedValue.match(/(\d+)\+?\s+(minute|hour|day|week|month|year)s?\s+ago/)
+  const match = normalizedValue.match(RELATIVE_POSTED_AT_PATTERN)
 
   if (!match) {
     return null

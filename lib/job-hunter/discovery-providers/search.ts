@@ -268,14 +268,22 @@ function mergeApplyOptions(
   return Array.from(merged.values())
 }
 
+function getGoogleJobsLocation(result: SerpApiGoogleJobsResult) {
+  const location = result.location?.trim()
+
+  if (location) {
+    return location
+  }
+
+  return result.detected_extensions?.work_from_home ? 'Remote' : 'Not specified'
+}
+
 function normalizeGoogleJobsResult(
   result: SerpApiGoogleJobsResult,
 ): GoogleJobsDiscoveredJob | null {
   const title = result.title?.trim()
   const company = result.company_name?.trim() || 'Unknown company'
-  const location = result.location?.trim() || (result.detected_extensions?.work_from_home
-    ? 'Remote'
-    : 'Not specified')
+  const location = getGoogleJobsLocation(result)
   const applyOptions = normalizeApplyOptions(result.apply_options)
 
   if (!title || applyOptions.length === 0) {
