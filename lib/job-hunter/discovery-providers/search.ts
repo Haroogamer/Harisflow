@@ -1,59 +1,47 @@
 import {
-  hasUsStateIndicator,
+  hasBlockedInternationalLocation,
+  hasNorthAmericaLocationIndicator,
 } from '@/lib/job-hunter/us-location'
 
 const SERPAPI_SEARCH_URL = 'https://serpapi.com/search.json'
-const MAX_DISCOVERED_URLS = 20
-
-export const SEARCH_DISCOVERY_QUERIES = [
-  // Workday
-  'site:myworkdayjobs.com ServiceNow Developer ("United States" OR USA OR Canada OR Remote)',
-  'site:myworkdayjobs.com ServiceNow Architect ("United States" OR USA OR Canada OR Remote)',
-  'site:myworkdayjobs.com ServiceNow Engineer ("United States" OR USA OR Canada OR Remote)',
-  'site:myworkdayjobs.com ServiceNow Administrator ("United States" OR USA OR Canada OR Remote)',
-  'site:myworkdayjobs.com ServiceNow Consultant ("United States" OR USA OR Canada OR Remote)',
-  'site:myworkdayjobs.com ServiceNow Remote',
-  'site:myworkdayjobs.com ServiceNow Canada',
-  'site:myworkdayjobs.com ServiceNow USA',
-  // Greenhouse
-  'site:boards.greenhouse.io ServiceNow Developer ("United States" OR USA OR Canada OR Remote)',
-  'site:boards.greenhouse.io ServiceNow Architect ("United States" OR USA OR Canada OR Remote)',
-  'site:boards.greenhouse.io ServiceNow Engineer ("United States" OR USA OR Canada OR Remote)',
-  'site:boards.greenhouse.io ServiceNow Consultant ("United States" OR USA OR Canada OR Remote)',
-  // Lever
-  'site:jobs.lever.co ServiceNow Developer ("United States" OR USA OR Canada OR Remote)',
-  'site:jobs.lever.co ServiceNow Architect ("United States" OR USA OR Canada OR Remote)',
-  'site:jobs.lever.co ServiceNow Engineer ("United States" OR USA OR Canada OR Remote)',
-  'site:jobs.lever.co ServiceNow Consultant ("United States" OR USA OR Canada OR Remote)',
-  // Ashby
-  'site:jobs.ashbyhq.com ServiceNow Developer ("United States" OR USA OR Canada OR Remote)',
-  'site:jobs.ashbyhq.com ServiceNow Architect ("United States" OR USA OR Canada OR Remote)',
-  'site:jobs.ashbyhq.com ServiceNow Engineer ("United States" OR USA OR Canada OR Remote)',
-  // Oracle Cloud
-  'site:oraclecloud.com/hcmUI/CandidateExperience ServiceNow Developer ("United States" OR USA OR Canada OR Remote)',
-  'site:oraclecloud.com/hcmUI/CandidateExperience ServiceNow Architect ("United States" OR USA OR Canada OR Remote)',
-  // Dayforce
-  'site:jobs.dayforcehcm.com ServiceNow Developer ("United States" OR USA OR Canada OR Remote)',
-  'site:jobs.dayforcehcm.com ServiceNow Architect ("United States" OR USA OR Canada OR Remote)',
-  // UltiPro (recruiting and recruiting2 subdomains)
-  'site:recruiting.ultipro.com ServiceNow Developer ("United States" OR USA OR Canada OR Remote)',
-  'site:recruiting.ultipro.ca ServiceNow Developer ("United States" OR USA OR Canada OR Remote)',
-  'site:recruiting2.ultipro.com ServiceNow Developer ("United States" OR USA OR Canada OR Remote)',
-  // SmartRecruiters
-  'site:careers.smartrecruiters.com ServiceNow Developer ("United States" OR USA OR Canada OR Remote)',
-  'site:careers.smartrecruiters.com ServiceNow Architect ("United States" OR USA OR Canada OR Remote)',
-  'site:careers.smartrecruiters.com ServiceNow Engineer ("United States" OR USA OR Canada OR Remote)',
-  // iCIMS
-  'site:icims.com ServiceNow Developer ("United States" OR USA OR Canada OR Remote)',
-  'site:icims.com ServiceNow Architect ("United States" OR USA OR Canada OR Remote)',
-]
-
-const GOOGLE_JOBS_QUERIES = [
+const MAX_DISCOVERED_URLS = 75
+const MAX_GOOGLE_JOBS = 50
+const LOCATION_QUALIFIER = '("United States" OR USA OR Canada OR Remote)'
+const ATS_SITE_SCOPES = [
+  'site:myworkdayjobs.com',
+  'site:boards.greenhouse.io',
+  'site:jobs.lever.co',
+  'site:jobs.ashbyhq.com',
+  'site:oraclecloud.com/hcmUI/CandidateExperience',
+  'site:jobs.dayforcehcm.com',
+  'site:recruiting.ultipro.com',
+  'site:recruiting.ultipro.ca',
+  'site:recruiting2.ultipro.com',
+  'site:recruiting2.ultipro.ca',
+  'site:careers.smartrecruiters.com',
+  'site:icims.com',
+] as const
+const SERVICE_NOW_SEARCH_TERMS = [
   'ServiceNow Developer',
   'ServiceNow Architect',
-  'ServiceNow Admin',
   'ServiceNow Engineer',
-]
+  'ServiceNow Administrator',
+  'ServiceNow Admin',
+  'ServiceNow Consultant',
+  'ServiceNow Business Analyst',
+  'ServiceNow Platform Engineer',
+  'ServiceNow ITSM',
+  'ServiceNow ITOM',
+  'ServiceNow HRSD',
+] as const
+
+export const SEARCH_DISCOVERY_QUERIES = ATS_SITE_SCOPES.flatMap((siteScope) =>
+  SERVICE_NOW_SEARCH_TERMS.map(
+    (term) => `${siteScope} ${term} ${LOCATION_QUALIFIER}`,
+  ),
+)
+
+const GOOGLE_JOBS_QUERIES = SERVICE_NOW_SEARCH_TERMS
 
 type SerpApiOrganicResult = {
   title?: string
@@ -88,71 +76,17 @@ type SerpApiGoogleJobsResponse = {
   error?: string
 }
 
-const ALLOWED_LOCATION_TERMS = [
-  'united states',
-  'usa',
-  'u.s.',
-  'canada',
-  'remote',
-  'new york',
-  'michigan',
-  'toronto',
-  'chicago',
-  'dallas',
-  'atlanta',
-  'washington',
-  'virginia',
-]
-
-const BLOCKED_LOCATION_TERMS = [
-  'india',
-  'uk',
-  'united kingdom',
-  'england',
-  'germany',
-  'france',
-  'spain',
-  'netherlands',
-  'singapore',
-  'australia',
-  'philippines',
-  'mexico',
-  'brazil',
-  'ireland',
-  'poland',
-  'romania',
-  'czech republic',
-  'hungary',
-  'israel',
-  'pakistan',
-  'uae',
-  'united arab emirates',
-  'south africa',
-  'colombia',
-  'argentina',
-  'portugal',
-  'italy',
-  'sweden',
-  'denmark',
-  'norway',
-  'finland',
-  'switzerland',
-  'belgium',
-  'austria',
-  'new zealand',
-  'malaysia',
-  'indonesia',
-  'vietnam',
-  'japan',
-  'china',
-  'hong kong',
-  'sri lanka',
-  'bangladesh',
-  'egypt',
-  'morocco',
-  'nigeria',
-  'kenya',
-]
+export type GoogleJobsDiscoveredJob = {
+  title: string
+  company: string
+  location: string
+  workFromHome: boolean
+  postedAt: string | null
+  applyOptions: {
+    title: string
+    link: string
+  }[]
+}
 
 function includesLocationTerm(text: string, term: string) {
   const escapedTerm = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -172,19 +106,16 @@ function resultMatchesAllowedLocation(result: SerpApiOrganicResult) {
     .filter(Boolean)
     .join(' ')
     .toLowerCase()
-  const hasBlockedLocation = BLOCKED_LOCATION_TERMS.some((term) =>
-    includesLocationTerm(searchableText, term),
+  const hasBlockedLocation = hasBlockedInternationalLocation(
+    searchableText,
+    includesLocationTerm,
   )
 
   if (hasBlockedLocation) {
     return false
   }
 
-  return (
-    ALLOWED_LOCATION_TERMS.some((term) =>
-      includesLocationTerm(searchableText, term),
-    ) || hasUsStateIndicator(searchableText, includesLocationTerm)
-  )
+  return hasNorthAmericaLocationIndicator(searchableText, includesLocationTerm)
 }
 
 async function searchSerpApi(query: string, apiKey: string) {
@@ -293,19 +224,72 @@ function googleJobsResultMatchesAllowedLocation(
 
   if (!searchableText) return true
 
-  const hasBlockedLocation = BLOCKED_LOCATION_TERMS.some((term) =>
-    includesLocationTerm(searchableText, term),
+  const hasBlockedLocation = hasBlockedInternationalLocation(
+    searchableText,
+    includesLocationTerm,
   )
 
   if (hasBlockedLocation) return false
 
   if (result.detected_extensions?.work_from_home) return true
 
-  return (
-    ALLOWED_LOCATION_TERMS.some((term) =>
-      includesLocationTerm(searchableText, term),
-    ) || hasUsStateIndicator(searchableText, includesLocationTerm)
-  )
+  return hasNorthAmericaLocationIndicator(searchableText, includesLocationTerm)
+}
+
+function normalizeApplyOptions(
+  applyOptions: SerpApiGoogleJobsApplyOption[] | undefined,
+) {
+  const uniqueApplyOptions = new Map<string, { title: string; link: string }>()
+
+  for (const applyOption of applyOptions ?? []) {
+    if (!applyOption.link) {
+      continue
+    }
+
+    uniqueApplyOptions.set(applyOption.link, {
+      title: applyOption.title?.trim() || 'Apply',
+      link: applyOption.link,
+    })
+  }
+
+  return Array.from(uniqueApplyOptions.values())
+}
+
+function mergeApplyOptions(
+  current: GoogleJobsDiscoveredJob['applyOptions'],
+  incoming: GoogleJobsDiscoveredJob['applyOptions'],
+) {
+  const merged = new Map(current.map((option) => [option.link, option]))
+
+  for (const option of incoming) {
+    merged.set(option.link, option)
+  }
+
+  return Array.from(merged.values())
+}
+
+function normalizeGoogleJobsResult(
+  result: SerpApiGoogleJobsResult,
+): GoogleJobsDiscoveredJob | null {
+  const title = result.title?.trim()
+  const company = result.company_name?.trim() || 'Unknown company'
+  const location = result.location?.trim() || (result.detected_extensions?.work_from_home
+    ? 'Remote'
+    : 'Not specified')
+  const applyOptions = normalizeApplyOptions(result.apply_options)
+
+  if (!title || applyOptions.length === 0) {
+    return null
+  }
+
+  return {
+    title,
+    company,
+    location,
+    workFromHome: Boolean(result.detected_extensions?.work_from_home),
+    postedAt: result.detected_extensions?.posted_at?.trim() || null,
+    applyOptions,
+  }
 }
 
 export async function searchGoogleJobsForServiceNow() {
@@ -319,7 +303,7 @@ export async function searchGoogleJobsForServiceNow() {
     return []
   }
 
-  const urls = new Set<string>()
+  const jobsByKey = new Map<string, GoogleJobsDiscoveredJob>()
 
   for (const query of GOOGLE_JOBS_QUERIES) {
     try {
@@ -330,14 +314,32 @@ export async function searchGoogleJobsForServiceNow() {
           continue
         }
 
-        for (const applyOption of result.apply_options ?? []) {
-          if (applyOption.link) {
-            urls.add(applyOption.link)
-          }
+        const normalizedJob = normalizeGoogleJobsResult(result)
+
+        if (!normalizedJob) {
+          continue
         }
 
-        if (urls.size >= MAX_DISCOVERED_URLS) {
-          return Array.from(urls)
+        const key = [
+          normalizedJob.title,
+          normalizedJob.company,
+          normalizedJob.location,
+        ]
+          .join('::')
+          .toLowerCase()
+        const existingJob = jobsByKey.get(key)
+
+        if (existingJob) {
+          existingJob.applyOptions = mergeApplyOptions(
+            existingJob.applyOptions,
+            normalizedJob.applyOptions,
+          )
+        } else {
+          jobsByKey.set(key, normalizedJob)
+        }
+
+        if (jobsByKey.size >= MAX_GOOGLE_JOBS) {
+          return Array.from(jobsByKey.values())
         }
       }
     } catch (error) {
@@ -346,5 +348,5 @@ export async function searchGoogleJobsForServiceNow() {
     }
   }
 
-  return Array.from(urls)
+  return Array.from(jobsByKey.values())
 }

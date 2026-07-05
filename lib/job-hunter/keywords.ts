@@ -1,5 +1,6 @@
 import {
-  hasUsStateIndicator,
+  hasBlockedInternationalLocation,
+  hasNorthAmericaLocationIndicator,
 } from '@/lib/job-hunter/us-location'
 
 export const SERVICE_NOW_KEYWORDS = [
@@ -101,73 +102,6 @@ const WEAK_CONTEXT_TERMS = [
   { label: 'familiarity', value: 'familiarity' },
   { label: 'experience with', value: 'experience with' },
   { label: 'plus', value: 'plus' },
-]
-
-const ALLOWED_LOCATION_TERMS = [
-  { label: 'United States', value: 'united states' },
-  { label: 'USA', value: 'usa' },
-  { label: 'U.S.', value: 'u.s.' },
-  { label: 'US', value: 'us' },
-  { label: 'Canada', value: 'canada' },
-  { label: 'Remote', value: 'remote' },
-  { label: 'New York', value: 'new york' },
-  { label: 'Michigan', value: 'michigan' },
-  { label: 'Toronto', value: 'toronto' },
-  { label: 'Chicago', value: 'chicago' },
-  { label: 'Dallas', value: 'dallas' },
-  { label: 'Atlanta', value: 'atlanta' },
-  { label: 'Washington', value: 'washington' },
-  { label: 'Virginia', value: 'virginia' },
-]
-
-const BLOCKED_LOCATION_TERMS = [
-  { label: 'India', value: 'india' },
-  { label: 'UK', value: 'uk' },
-  { label: 'United Kingdom', value: 'united kingdom' },
-  { label: 'England', value: 'england' },
-  { label: 'Germany', value: 'germany' },
-  { label: 'France', value: 'france' },
-  { label: 'Spain', value: 'spain' },
-  { label: 'Netherlands', value: 'netherlands' },
-  { label: 'Singapore', value: 'singapore' },
-  { label: 'Australia', value: 'australia' },
-  { label: 'Philippines', value: 'philippines' },
-  { label: 'Mexico', value: 'mexico' },
-  { label: 'Brazil', value: 'brazil' },
-  { label: 'Ireland', value: 'ireland' },
-  { label: 'Poland', value: 'poland' },
-  { label: 'Romania', value: 'romania' },
-  { label: 'Czech Republic', value: 'czech republic' },
-  { label: 'Hungary', value: 'hungary' },
-  { label: 'Israel', value: 'israel' },
-  { label: 'Pakistan', value: 'pakistan' },
-  { label: 'UAE', value: 'uae' },
-  { label: 'United Arab Emirates', value: 'united arab emirates' },
-  { label: 'South Africa', value: 'south africa' },
-  { label: 'Colombia', value: 'colombia' },
-  { label: 'Argentina', value: 'argentina' },
-  { label: 'Portugal', value: 'portugal' },
-  { label: 'Italy', value: 'italy' },
-  { label: 'Sweden', value: 'sweden' },
-  { label: 'Denmark', value: 'denmark' },
-  { label: 'Norway', value: 'norway' },
-  { label: 'Finland', value: 'finland' },
-  { label: 'Switzerland', value: 'switzerland' },
-  { label: 'Belgium', value: 'belgium' },
-  { label: 'Austria', value: 'austria' },
-  { label: 'New Zealand', value: 'new zealand' },
-  { label: 'Malaysia', value: 'malaysia' },
-  { label: 'Indonesia', value: 'indonesia' },
-  { label: 'Vietnam', value: 'vietnam' },
-  { label: 'Japan', value: 'japan' },
-  { label: 'China', value: 'china' },
-  { label: 'Hong Kong', value: 'hong kong' },
-  { label: 'Sri Lanka', value: 'sri lanka' },
-  { label: 'Bangladesh', value: 'bangladesh' },
-  { label: 'Egypt', value: 'egypt' },
-  { label: 'Morocco', value: 'morocco' },
-  { label: 'Nigeria', value: 'nigeria' },
-  { label: 'Kenya', value: 'kenya' },
 ]
 
 function includesTerm(text: string, term: string) {
@@ -310,19 +244,16 @@ function getLocationText(job: KeywordMatchJob) {
 
 export function isAllowedLocation(job: KeywordMatchJob) {
   const locationText = getLocationText(job)
-  const hasBlockedLocation = BLOCKED_LOCATION_TERMS.some((term) =>
-    includesTerm(locationText, term.value),
+  const hasBlockedLocation = hasBlockedInternationalLocation(
+    locationText,
+    includesTerm,
   )
 
   if (hasBlockedLocation) {
     return false
   }
 
-  return (
-    ALLOWED_LOCATION_TERMS.some((term) =>
-      includesTerm(locationText, term.value),
-    ) || hasUsStateIndicator(locationText, includesTerm)
-  )
+  return hasNorthAmericaLocationIndicator(locationText, includesTerm)
 }
 
 export function explainJobMatch(job: KeywordMatchJob) {
