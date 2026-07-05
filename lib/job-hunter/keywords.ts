@@ -124,6 +124,7 @@ const BLOCKED_LOCATION_TERMS = [
   { label: 'India', value: 'india' },
   { label: 'UK', value: 'uk' },
   { label: 'United Kingdom', value: 'united kingdom' },
+  { label: 'England', value: 'england' },
   { label: 'Germany', value: 'germany' },
   { label: 'France', value: 'france' },
   { label: 'Spain', value: 'spain' },
@@ -133,6 +134,40 @@ const BLOCKED_LOCATION_TERMS = [
   { label: 'Philippines', value: 'philippines' },
   { label: 'Mexico', value: 'mexico' },
   { label: 'Brazil', value: 'brazil' },
+  { label: 'Ireland', value: 'ireland' },
+  { label: 'Poland', value: 'poland' },
+  { label: 'Romania', value: 'romania' },
+  { label: 'Czech Republic', value: 'czech republic' },
+  { label: 'Hungary', value: 'hungary' },
+  { label: 'Israel', value: 'israel' },
+  { label: 'Pakistan', value: 'pakistan' },
+  { label: 'UAE', value: 'uae' },
+  { label: 'United Arab Emirates', value: 'united arab emirates' },
+  { label: 'South Africa', value: 'south africa' },
+  { label: 'Colombia', value: 'colombia' },
+  { label: 'Argentina', value: 'argentina' },
+  { label: 'Portugal', value: 'portugal' },
+  { label: 'Italy', value: 'italy' },
+  { label: 'Sweden', value: 'sweden' },
+  { label: 'Denmark', value: 'denmark' },
+  { label: 'Norway', value: 'norway' },
+  { label: 'Finland', value: 'finland' },
+  { label: 'Switzerland', value: 'switzerland' },
+  { label: 'Belgium', value: 'belgium' },
+  { label: 'Austria', value: 'austria' },
+  { label: 'New Zealand', value: 'new zealand' },
+  { label: 'Malaysia', value: 'malaysia' },
+  { label: 'Indonesia', value: 'indonesia' },
+  { label: 'Vietnam', value: 'vietnam' },
+  { label: 'Japan', value: 'japan' },
+  { label: 'China', value: 'china' },
+  { label: 'Hong Kong', value: 'hong kong' },
+  { label: 'Sri Lanka', value: 'sri lanka' },
+  { label: 'Bangladesh', value: 'bangladesh' },
+  { label: 'Egypt', value: 'egypt' },
+  { label: 'Morocco', value: 'morocco' },
+  { label: 'Nigeria', value: 'nigeria' },
+  { label: 'Kenya', value: 'kenya' },
 ]
 
 function includesTerm(text: string, term: string) {
@@ -232,23 +267,26 @@ function getJobDescription(job: KeywordMatchJob) {
   return job.description ?? job.job_description ?? ''
 }
 
-function getResponsibilityText(job: KeywordMatchJob) {
+function getResponsibilityText(job: KeywordMatchJob): { text: string; usedFallback: boolean } {
   const description = getJobDescription(job)
   const extractedText = extractResponsibilityText(description)
 
   if (extractedText) {
-    return extractedText
+    return { text: extractedText, usedFallback: false }
   }
 
-  return `${job.title ?? ''} ${description.slice(0, 1500)}`.trim()
+  return {
+    text: `${job.title ?? ''} ${description.slice(0, 1500)}`.trim(),
+    usedFallback: true,
+  }
 }
 
 function getLocationText(job: KeywordMatchJob) {
-  return [
-    job.location,
-    job.title,
-    job.description ?? job.job_description,
-  ]
+  // Use only the structured location field and title — never the full description.
+  // Scanning the description for location terms causes false positives (e.g. an
+  // India-based job that mentions "US clients" passes the filter) and false
+  // negatives (e.g. a US remote job that mentions "India team" gets blocked).
+  return [job.location, job.title]
     .filter(Boolean)
     .join(' ')
     .toLowerCase()
@@ -273,7 +311,7 @@ export function isAllowedLocation(job: KeywordMatchJob) {
 
 export function explainJobMatch(job: KeywordMatchJob) {
   const title = job.title?.toLowerCase() ?? ''
-  const responsibilityTextUsed = getResponsibilityText(job)
+  const { text: responsibilityTextUsed, usedFallback } = getResponsibilityText(job)
   const responsibilityText = responsibilityTextUsed.toLowerCase()
   const locationAllowed = isAllowedLocation(job)
   const titleTerms = STRONG_TITLE_TERMS.filter((term) =>
@@ -319,7 +357,12 @@ export function explainJobMatch(job: KeywordMatchJob) {
   ).map((term) => term.label)
   const responsibilityMatchedTerms = [...directTerms, ...actionTerms]
   const responsibilityScore = 80 + Math.min(actionTerms.length, 5)
-  const hasResponsibilityMatch = directTerms.length > 0 && actionTerms.length >= 2
+  // When no structured responsibilities section was found we fall back to
+  // the first 1,500 characters of the raw description.  That text is far
+  // less reliable (ServiceNow may just appear in a skills list), so we
+  // require more action-term evidence (4 vs 2) before declaring a match.
+  const minActionTerms = usedFallback ? 4 : 2
+  const hasResponsibilityMatch = directTerms.length > 0 && actionTerms.length >= minActionTerms
 
   if (hasResponsibilityMatch && !locationAllowed) {
     return {
@@ -345,7 +388,7 @@ export function explainJobMatch(job: KeywordMatchJob) {
 
   let relevanceReason = 'No strong ServiceNow title or responsibility match'
 
-  if (directTerms.length > 0 && actionTerms.length < 2) {
+  if (directTerms.length > 0 && actionTerms.length < minActionTerms) {
     relevanceReason =
       weakContextTerms.length > 0
         ? 'ServiceNow appears in weak context without enough action terms'
