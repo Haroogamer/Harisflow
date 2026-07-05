@@ -263,10 +263,26 @@ type KeywordMatchJob = {
   location?: string | null
 }
 
+// Minimum number of action terms required to declare a responsibility-section match.
+// A lower bar applies when a structured responsibilities section was found because
+// the text is tightly scoped to what the role actually does.  When no section is
+// found we fall back to raw description text, which is far less reliable (ServiceNow
+// may appear only in a skills list), so we require more evidence.
+const MIN_ACTION_TERMS_STRUCTURED = 2
+const MIN_ACTION_TERMS_FALLBACK = 4
+
 function getJobDescription(job: KeywordMatchJob) {
   return job.description ?? job.job_description ?? ''
 }
 
+/**
+ * Returns the text to use when evaluating whether a job's responsibilities
+ * centre on ServiceNow.  When a structured responsibilities section is
+ * detected (`usedFallback: false`) the text is tightly scoped.  When no
+ * section is found (`usedFallback: true`) the first 1,500 characters of the
+ * raw description are used instead and a stricter action-term threshold
+ * applies in the caller.
+ */
 function getResponsibilityText(job: KeywordMatchJob): { text: string; usedFallback: boolean } {
   const description = getJobDescription(job)
   const extractedText = extractResponsibilityText(description)
@@ -360,8 +376,8 @@ export function explainJobMatch(job: KeywordMatchJob) {
   // When no structured responsibilities section was found we fall back to
   // the first 1,500 characters of the raw description.  That text is far
   // less reliable (ServiceNow may just appear in a skills list), so we
-  // require more action-term evidence (4 vs 2) before declaring a match.
-  const minActionTerms = usedFallback ? 4 : 2
+  // require more action-term evidence before declaring a match.
+  const minActionTerms = usedFallback ? MIN_ACTION_TERMS_FALLBACK : MIN_ACTION_TERMS_STRUCTURED
   const hasResponsibilityMatch = directTerms.length > 0 && actionTerms.length >= minActionTerms
 
   if (hasResponsibilityMatch && !locationAllowed) {
