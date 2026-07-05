@@ -1,1 +1,1 @@
-export const RECENT_JOB_MAX_AGE_DAYS = 5
+export const RECENT_JOB_MAX_AGE_DAYS = 7
