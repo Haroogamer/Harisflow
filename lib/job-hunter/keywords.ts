@@ -244,18 +244,15 @@ function getResponsibilityText(job: KeywordMatchJob) {
 }
 
 function getLocationText(job: KeywordMatchJob) {
-  return [
-    job.location,
-    job.title,
-    job.description ?? job.job_description,
-  ]
-    .filter(Boolean)
-    .join(' ')
-    .toLowerCase()
+  return (job.location ?? '').toLowerCase()
 }
 
 export function isAllowedLocation(job: KeywordMatchJob) {
   const locationText = getLocationText(job)
+
+  // No location data — be inclusive rather than silently dropping the job
+  if (!locationText.trim()) return true
+
   const hasBlockedLocation = BLOCKED_LOCATION_TERMS.some((term) =>
     includesTerm(locationText, term.value),
   )
@@ -269,6 +266,14 @@ export function isAllowedLocation(job: KeywordMatchJob) {
       includesTerm(locationText, term.value),
     ) || hasUsStateIndicator(locationText, includesTerm)
   )
+}
+
+function countDirectServiceNowMentions(text: string): number {
+  return DIRECT_SERVICE_NOW_TERMS.reduce((count, term) => {
+    const escaped = term.value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const regex = new RegExp(escaped, 'gi')
+    return count + (text.match(regex)?.length ?? 0)
+  }, 0)
 }
 
 export function explainJobMatch(job: KeywordMatchJob) {
@@ -311,6 +316,7 @@ export function explainJobMatch(job: KeywordMatchJob) {
   const directTerms = DIRECT_SERVICE_NOW_TERMS.filter((term) =>
     responsibilityText.includes(term.value),
   ).map((term) => term.label)
+  const directMentionCount = countDirectServiceNowMentions(responsibilityText)
   const actionTerms = ACTION_TERMS.filter((term) =>
     includesTerm(responsibilityText, term.value),
   ).map((term) => term.label)
@@ -319,7 +325,7 @@ export function explainJobMatch(job: KeywordMatchJob) {
   ).map((term) => term.label)
   const responsibilityMatchedTerms = [...directTerms, ...actionTerms]
   const responsibilityScore = 80 + Math.min(actionTerms.length, 5)
-  const hasResponsibilityMatch = directTerms.length > 0 && actionTerms.length >= 2
+  const hasResponsibilityMatch = directMentionCount >= 2 && actionTerms.length >= 2
 
   if (hasResponsibilityMatch && !locationAllowed) {
     return {
@@ -335,7 +341,7 @@ export function explainJobMatch(job: KeywordMatchJob) {
   if (hasResponsibilityMatch) {
     return {
       matches: true,
-      reason: 'Responsibility text centers ServiceNow with multiple action terms and allowed location',
+      reason: 'Responsibility text centers ServiceNow (2+ mentions) with multiple action terms and allowed location',
       matchedTerms: responsibilityMatchedTerms,
       score: responsibilityScore,
       locationAllowed,
@@ -345,11 +351,13 @@ export function explainJobMatch(job: KeywordMatchJob) {
 
   let relevanceReason = 'No strong ServiceNow title or responsibility match'
 
-  if (directTerms.length > 0 && actionTerms.length < 2) {
+  if (directTerms.length > 0 && (directMentionCount < 2 || actionTerms.length < 2)) {
     relevanceReason =
-      weakContextTerms.length > 0
-        ? 'ServiceNow appears in weak context without enough action terms'
-        : 'ServiceNow appears without enough responsibility action terms'
+      directMentionCount < 2
+        ? weakContextTerms.length > 0
+          ? 'ServiceNow appears only once and in weak context'
+          : 'ServiceNow appears only once in responsibility text — must appear 2+ times to qualify'
+        : 'ServiceNow appears in responsibility text but without enough action terms'
   } else if (titleTerms.length > 0 && roleTerms.length === 0) {
     relevanceReason = 'ServiceNow title term appears without a role word'
   } else if (roleTerms.length > 0 && titleTerms.length === 0) {
