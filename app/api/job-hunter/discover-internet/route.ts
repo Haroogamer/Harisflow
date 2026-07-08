@@ -2,6 +2,10 @@ import { NextResponse } from 'next/server'
 import { searchServiceNowJobUrls, searchGoogleJobsForServiceNow } from '@/lib/job-hunter/discovery-providers/search'
 import { intakeJobSourceUrls } from '@/lib/job-hunter/source-intake'
 import { RECENT_JOB_MAX_AGE_DAYS } from '@/lib/job-hunter/constants'
+import {
+  analyzeJobSourceUrl,
+  normalizeJobSourceCareersUrl,
+} from '@/lib/job-hunter/source-analyzer'
 
 type ErrorSummaryItem = {
   type: 'rate_limited' | 'error'
@@ -15,7 +19,7 @@ type ErrorSummaryItem = {
   }[]
 }
 
-const MAX_PROCESSED_SOURCES = 10
+const MAX_PROCESSED_SOURCES = 15
 const SOURCE_CRAWL_DELAY_MS = 2_000
 const DISCORD_NOTIFICATION_DELAY_MS = 750
 const ERROR_EXAMPLE_LIMIT = 3
@@ -75,6 +79,36 @@ function buildErrorSummary(
   }
 
   return Array.from(summaryByKey.values())
+}
+
+function getSourceDeduplicationKey(url: string) {
+  try {
+    const analyzed = analyzeJobSourceUrl(url)
+
+    if (analyzed) {
+      return normalizeJobSourceCareersUrl(analyzed.careers_url)
+    }
+
+    return normalizeJobSourceCareersUrl(url)
+  } catch (error) {
+    console.warn(`Failed to derive deduplication key for URL: ${url}`)
+    console.warn(error)
+    return url
+  }
+}
+
+function getUniqueUrls(urls: string[]) {
+  const uniqueByKey = new Map<string, string>()
+
+  for (const url of urls) {
+    const key = getSourceDeduplicationKey(url)
+
+    if (!uniqueByKey.has(key)) {
+      uniqueByKey.set(key, url)
+    }
+  }
+
+  return Array.from(uniqueByKey.values())
 }
 
 export async function GET(request: Request) {
