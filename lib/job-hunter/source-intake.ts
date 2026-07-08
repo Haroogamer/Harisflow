@@ -5,6 +5,8 @@ import { crawlAshbyCompany } from '@/lib/job-hunter/crawlers/ashby'
 import { crawlOracleCloudCompany } from '@/lib/job-hunter/crawlers/oraclecloud'
 import { crawlDayforceCompany } from '@/lib/job-hunter/crawlers/dayforce'
 import { crawlUltiproCompany } from '@/lib/job-hunter/crawlers/ultipro'
+import { crawlSmartRecruitersCompany } from '@/lib/job-hunter/crawlers/smartrecruiters'
+import { crawlIcimsCompany } from '@/lib/job-hunter/crawlers/icims'
 import { sendDiscordNotification } from '@/lib/job-hunter/discord'
 import { explainJobMatch } from '@/lib/job-hunter/keywords'
 import {
@@ -210,6 +212,22 @@ async function crawlSource(
       company: source.company,
       baseUrl: source.careers_url,
       ats_platform: 'ultipro',
+    }, crawlOptions)
+  }
+
+  if (source.ats_platform === 'smartrecruiters') {
+    return crawlSmartRecruitersCompany({
+      company: source.company,
+      baseUrl: source.careers_url,
+      ats_platform: 'smartrecruiters',
+    }, crawlOptions)
+  }
+
+  if (source.ats_platform === 'icims') {
+    return crawlIcimsCompany({
+      company: source.company,
+      baseUrl: source.careers_url,
+      ats_platform: 'icims',
     }, crawlOptions)
   }
 
