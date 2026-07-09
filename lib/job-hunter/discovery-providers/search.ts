@@ -144,10 +144,15 @@ export function getBalancedAtsJobUrls(options?: {
     ? [...PRIORITIZED_ATS_SEED_GROUPS, ...BROADER_ATS_SEED_GROUPS]
     : PRIORITIZED_ATS_SEED_GROUPS
   const pooledUrls = new Map<SupportedAtsPlatform, string[]>()
+  const platformOrder: SupportedAtsPlatform[] = []
 
   for (const group of groups) {
     const existing = pooledUrls.get(group.atsPlatform) ?? []
     pooledUrls.set(group.atsPlatform, [...existing, ...group.urls])
+
+    if (!platformOrder.includes(group.atsPlatform)) {
+      platformOrder.push(group.atsPlatform)
+    }
   }
 
   for (const [platform, urls] of pooledUrls) {
@@ -161,8 +166,8 @@ export function getBalancedAtsJobUrls(options?: {
   )
 
   for (let index = 0; index < maxRounds; index += 1) {
-    for (const group of groups) {
-      const urls = pooledUrls.get(group.atsPlatform) ?? []
+    for (const platform of platformOrder) {
+      const urls = pooledUrls.get(platform) ?? []
       const url = urls[index]
 
       if (url) {

@@ -9,7 +9,7 @@ import {
   saveJob,
 } from '@/lib/job-hunter/job-storage'
 import { getEnabledJobSources } from '@/lib/job-hunter/job-sources'
-import type { JobHunterJob, JobSource } from '@/lib/job-hunter/job-types'
+import type { JobSource } from '@/lib/job-hunter/job-types'
 import { explainJobMatch } from '@/lib/job-hunter/keywords'
 import { sendDiscordNotification } from '@/lib/job-hunter/discord'
 import { supabaseAdmin } from '@/lib/supabase-admin'
