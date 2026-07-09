@@ -266,10 +266,10 @@ type KeywordMatchJob = {
 // Minimum number of action terms required to declare a responsibility-section match.
 // A lower bar applies when a structured responsibilities section was found because
 // the text is tightly scoped to what the role actually does.  When no section is
-// found we fall back to raw description text, which is far less reliable (ServiceNow
-// may appear only in a skills list), so we require more evidence.
+// found we fall back to raw description text; we still require at least 2 action
+// terms alongside a direct ServiceNow term to confirm the role is ServiceNow-focused.
 const MIN_ACTION_TERMS_STRUCTURED = 2
-const MIN_ACTION_TERMS_FALLBACK = 4
+const MIN_ACTION_TERMS_FALLBACK = 2
 
 function getJobDescription(job: KeywordMatchJob) {
   return job.description ?? job.job_description ?? ''

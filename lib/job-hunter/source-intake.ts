@@ -1,12 +1,5 @@
-import { crawlGreenhouseCompany } from '@/lib/job-hunter/crawlers/greenhouse'
-import { crawlWorkdayCompany } from '@/lib/job-hunter/crawlers/workday'
-import { crawlLeverCompany } from '@/lib/job-hunter/crawlers/lever'
-import { crawlAshbyCompany } from '@/lib/job-hunter/crawlers/ashby'
-import { crawlOracleCloudCompany } from '@/lib/job-hunter/crawlers/oraclecloud'
-import { crawlDayforceCompany } from '@/lib/job-hunter/crawlers/dayforce'
-import { crawlUltiproCompany } from '@/lib/job-hunter/crawlers/ultipro'
-import { crawlSmartRecruitersCompany } from '@/lib/job-hunter/crawlers/smartrecruiters'
-import { crawlIcimsCompany } from '@/lib/job-hunter/crawlers/icims'
+import { crawlJobsForSource } from '@/lib/job-hunter/crawlers/registry'
+import { delay } from '@/lib/job-hunter/delay'
 import { sendDiscordNotification } from '@/lib/job-hunter/discord'
 import { explainJobMatch } from '@/lib/job-hunter/keywords'
 import {
@@ -22,13 +15,7 @@ import {
 import { supabaseAdmin } from '@/lib/supabase-admin'
 
 type IntakeJob = NonNullable<
-  | Awaited<ReturnType<typeof crawlWorkdayCompany>>[number]
-  | Awaited<ReturnType<typeof crawlGreenhouseCompany>>[number]
-  | Awaited<ReturnType<typeof crawlLeverCompany>>[number]
-  | Awaited<ReturnType<typeof crawlAshbyCompany>>[number]
-  | Awaited<ReturnType<typeof crawlOracleCloudCompany>>[number]
-  | Awaited<ReturnType<typeof crawlDayforceCompany>>[number]
-  | Awaited<ReturnType<typeof crawlUltiproCompany>>[number]
+  Awaited<ReturnType<typeof crawlJobsForSource>>[number]
 >
 
 export type SourceIntakeError = {
@@ -94,12 +81,6 @@ function isRateLimitErrorMessage(message: string) {
   return /(^|\D)429(\D|$)/.test(message)
 }
 
-function delay(ms: number) {
-  return new Promise((resolve) => {
-    setTimeout(resolve, ms)
-  })
-}
-
 function buildSourceNotes(source: JobSourceCandidate) {
   return [
     source.notes,
@@ -121,7 +102,7 @@ async function saveSourceIfNew(source: JobSourceCandidate) {
     throw lookupError
   }
 
-  if (existingSource) {
+    if (existingSource) {
     return {
       normalizedCareersUrl,
       sourceInserted: false,
@@ -155,83 +136,48 @@ async function saveSourceIfNew(source: JobSourceCandidate) {
   }
 }
 
+export type MatchedJobSourceSyncResult =
+  | { status: 'unsupported'; reason: string }
+  | {
+      status: 'inserted' | 'skipped'
+      careersUrl: string
+      reason: string
+    }
+
+export async function syncMatchedJobSource(
+  jobUrl?: string | null,
+): Promise<MatchedJobSourceSyncResult> {
+  if (!jobUrl) {
+    return { status: 'unsupported', reason: 'Missing job URL' }
+  }
+
+  const source = analyzeJobSourceUrl(jobUrl)
+
+  if (!source) {
+    return { status: 'unsupported', reason: 'Unsupported or invalid job URL' }
+  }
+
+  const saveResult = await saveSourceIfNew(source)
+
+  return {
+    status: saveResult.sourceInserted ? 'inserted' : 'skipped',
+    careersUrl: saveResult.normalizedCareersUrl,
+    reason: saveResult.reason,
+  }
+}
+
 async function crawlSource(
   source: JobSourceCandidate,
   options: SourceIntakeOptions = {},
 ) {
-  const crawlOptions = { maxAgeDays: options.maxAgeDays }
-  if (source.ats_platform === 'workday') {
-    return crawlWorkdayCompany({
+  return crawlJobsForSource(
+    {
       company: source.company,
       baseUrl: source.careers_url,
-    }, crawlOptions)
-  }
-
-  if (source.ats_platform === 'greenhouse') {
-    return crawlGreenhouseCompany({
-      company: source.company,
-      baseUrl: source.careers_url,
-      ats_platform: 'greenhouse',
-    }, crawlOptions)
-  }
-
-  if (source.ats_platform === 'lever') {
-    return crawlLeverCompany({
-      company: source.company,
-      baseUrl: source.careers_url,
-      ats_platform: 'lever',
-    }, crawlOptions)
-  }
-
-  if (source.ats_platform === 'ashby') {
-    return crawlAshbyCompany({
-      company: source.company,
-      baseUrl: source.careers_url,
-      ats_platform: 'ashby',
-    }, crawlOptions)
-  }
-
-  if (source.ats_platform === 'oraclecloud') {
-    return crawlOracleCloudCompany({
-      company: source.company,
-      baseUrl: source.careers_url,
-      ats_platform: 'oraclecloud',
-    }, crawlOptions)
-  }
-
-  if (source.ats_platform === 'dayforce') {
-    return crawlDayforceCompany({
-      company: source.company,
-      baseUrl: source.careers_url,
-      ats_platform: 'dayforce',
-    }, crawlOptions)
-  }
-
-  if (source.ats_platform === 'ultipro') {
-    return crawlUltiproCompany({
-      company: source.company,
-      baseUrl: source.careers_url,
-      ats_platform: 'ultipro',
-    }, crawlOptions)
-  }
-
-  if (source.ats_platform === 'smartrecruiters') {
-    return crawlSmartRecruitersCompany({
-      company: source.company,
-      baseUrl: source.careers_url,
-      ats_platform: 'smartrecruiters',
-    }, crawlOptions)
-  }
-
-  if (source.ats_platform === 'icims') {
-    return crawlIcimsCompany({
-      company: source.company,
-      baseUrl: source.careers_url,
-      ats_platform: 'icims',
-    }, crawlOptions)
-  }
-
-  return []
+      ats_platform: source.ats_platform,
+    },
+    { maxAgeDays: options.maxAgeDays },
+  )
 }
 
 export async function intakeJobSourceUrls(
@@ -353,6 +299,17 @@ export async function intakeJobSourceUrls(
         sourceResult.matched += 1
 
         try {
+          try {
+            await syncMatchedJobSource(job.job_url)
+          } catch (error) {
+            result.errors.push({
+              source: normalizedSource.careers_url,
+              job: title,
+              type: 'error',
+              error: `Failed to sync matched job source: ${serializeError(error)}`,
+            })
+          }
+
           const jobHash = await generateJobHash(job)
           const exists = await jobExists(jobHash)
 

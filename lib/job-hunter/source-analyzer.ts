@@ -1,13 +1,4 @@
-type AtsPlatform =
-  | 'workday'
-  | 'greenhouse'
-  | 'lever'
-  | 'ashby'
-  | 'oraclecloud'
-  | 'dayforce'
-  | 'ultipro'
-  | 'smartrecruiters'
-  | 'icims'
+import type { SupportedAtsPlatform } from '@/lib/job-hunter/crawlers/registry'
 
 const DEFAULT_LOCALE = 'en'
 const ORACLE_CLOUD_HOST_PATTERN =
@@ -19,7 +10,7 @@ const ICIMS_HOST_PATTERN = /^[a-z0-9-]+\.icims\.com$/i
 
 export type JobSourceCandidate = {
   company: string
-  ats_platform: AtsPlatform
+  ats_platform: SupportedAtsPlatform
   careers_url: string
   original_url: string
   confidence: number
