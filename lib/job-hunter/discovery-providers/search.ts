@@ -1,363 +1,82 @@
-import {
-  hasUsStateIndicator,
-} from '@/lib/job-hunter/us-location'
+const MAX_DISCOVERED_URLS = 80
 
-const SERPAPI_SEARCH_URL = 'https://serpapi.com/search.json'
-const MAX_DISCOVERED_URLS = 40
-
-// Query recent postings first (past week), then fall back to broader results.
-const SEARCH_WINDOWS = [
-  { tbs: 'qdr:w' },
-  { tbs: undefined },
-]
-
-export const SEARCH_DISCOVERY_QUERIES = [
-  // Workday
-  'site:myworkdayjobs.com ServiceNow Developer ("United States" OR USA OR Canada OR Remote)',
-  'site:myworkdayjobs.com ServiceNow Architect ("United States" OR USA OR Canada OR Remote)',
-  'site:myworkdayjobs.com ServiceNow Engineer ("United States" OR USA OR Canada OR Remote)',
-  'site:myworkdayjobs.com ServiceNow Administrator ("United States" OR USA OR Canada OR Remote)',
-  'site:myworkdayjobs.com ServiceNow Consultant ("United States" OR USA OR Canada OR Remote)',
-  'site:myworkdayjobs.com ServiceNow Remote',
-  'site:myworkdayjobs.com ServiceNow Canada',
-  'site:myworkdayjobs.com ServiceNow USA',
+const CORE_ATS_SEED_URLS = [
   // Greenhouse
-  'site:boards.greenhouse.io ServiceNow Developer ("United States" OR USA OR Canada OR Remote)',
-  'site:boards.greenhouse.io ServiceNow Architect ("United States" OR USA OR Canada OR Remote)',
-  'site:boards.greenhouse.io ServiceNow Engineer ("United States" OR USA OR Canada OR Remote)',
-  'site:boards.greenhouse.io ServiceNow Consultant ("United States" OR USA OR Canada OR Remote)',
+  'https://boards.greenhouse.io/servicenow',
+  'https://boards.greenhouse.io/datadog',
+  'https://boards.greenhouse.io/cloudflare',
+  'https://boards.greenhouse.io/okta',
+  'https://boards.greenhouse.io/hubspot',
+  'https://boards.greenhouse.io/coinbase',
   // Lever
-  'site:jobs.lever.co ServiceNow Developer ("United States" OR USA OR Canada OR Remote)',
-  'site:jobs.lever.co ServiceNow Architect ("United States" OR USA OR Canada OR Remote)',
-  'site:jobs.lever.co ServiceNow Engineer ("United States" OR USA OR Canada OR Remote)',
-  'site:jobs.lever.co ServiceNow Consultant ("United States" OR USA OR Canada OR Remote)',
+  'https://jobs.lever.co/snowflake',
+  'https://jobs.lever.co/atlassian',
+  'https://jobs.lever.co/airtable',
+  'https://jobs.lever.co/openai',
   // Ashby
-  'site:jobs.ashbyhq.com ServiceNow Developer ("United States" OR USA OR Canada OR Remote)',
-  'site:jobs.ashbyhq.com ServiceNow Architect ("United States" OR USA OR Canada OR Remote)',
-  'site:jobs.ashbyhq.com ServiceNow Engineer ("United States" OR USA OR Canada OR Remote)',
-  // Oracle Cloud
-  'site:oraclecloud.com/hcmUI/CandidateExperience ServiceNow Developer ("United States" OR USA OR Canada OR Remote)',
-  'site:oraclecloud.com/hcmUI/CandidateExperience ServiceNow Architect ("United States" OR USA OR Canada OR Remote)',
-  // Dayforce
-  'site:jobs.dayforcehcm.com ServiceNow Developer ("United States" OR USA OR Canada OR Remote)',
-  'site:jobs.dayforcehcm.com ServiceNow Architect ("United States" OR USA OR Canada OR Remote)',
-  // UltiPro (recruiting and recruiting2 subdomains)
-  'site:recruiting.ultipro.com ServiceNow Developer ("United States" OR USA OR Canada OR Remote)',
-  'site:recruiting.ultipro.ca ServiceNow Developer ("United States" OR USA OR Canada OR Remote)',
-  'site:recruiting2.ultipro.com ServiceNow Developer ("United States" OR USA OR Canada OR Remote)',
+  'https://jobs.ashbyhq.com/notion',
+  'https://jobs.ashbyhq.com/figma',
+  'https://jobs.ashbyhq.com/ramp',
+  'https://jobs.ashbyhq.com/retool',
   // SmartRecruiters
-  'site:careers.smartrecruiters.com ServiceNow Developer ("United States" OR USA OR Canada OR Remote)',
-  'site:careers.smartrecruiters.com ServiceNow Architect ("United States" OR USA OR Canada OR Remote)',
-  'site:careers.smartrecruiters.com ServiceNow Engineer ("United States" OR USA OR Canada OR Remote)',
+  'https://careers.smartrecruiters.com/Visa',
+  'https://careers.smartrecruiters.com/Dynatrace',
   // iCIMS
-  'site:icims.com ServiceNow Developer ("United States" OR USA OR Canada OR Remote)',
-  'site:icims.com ServiceNow Architect ("United States" OR USA OR Canada OR Remote)',
+  'https://careers-fisglobal.icims.com/jobs/search',
+  'https://careers-splunk.icims.com/jobs/search',
+  // Dayforce
+  'https://jobs.dayforcehcm.com/en-US/okta/alljobs',
+  'https://jobs.dayforcehcm.com/en-US/trimble/alljobs',
+  // Oracle Cloud
+  'https://edel.fa.us2.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_2001/jobs',
+  'https://hcrw.fa.us2.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1/jobs',
 ]
 
-const GOOGLE_JOBS_QUERIES = [
-  'ServiceNow Developer',
-  'ServiceNow Architect',
-  'ServiceNow Admin',
-  'ServiceNow Engineer',
+const EXTENDED_ATS_SEED_URLS = [
+  // Workday
+  'https://guidehouse.wd1.myworkdayjobs.com/en-US/External',
+  'https://nvidia.wd5.myworkdayjobs.com/en-US/NVIDIAExternalCareerSite',
+  'https://target.wd5.myworkdayjobs.com/en-US/targetcareers',
+  'https://bah.wd1.myworkdayjobs.com/en-US/BAH_Jobs',
+  'https://mantech.wd1.myworkdayjobs.com/en-US/External',
+  'https://proofpoint.wd5.myworkdayjobs.com/ProofpointCareers',
+  'https://cvshealth.wd1.myworkdayjobs.com/en-US/CVS_Health_Careers',
+  'https://generalmotors.wd5.myworkdayjobs.com/en-US/Careers_GM',
+  'https://dell.wd1.myworkdayjobs.com/External',
+  'https://mars.wd3.myworkdayjobs.com/en-US/External',
+  'https://msd.wd5.myworkdayjobs.com/en-US/SearchJobs',
+  'https://wholefoods.wd5.myworkdayjobs.com/en-US/wholefoods',
+  // UltiPro
+  'https://recruiting.ultipro.ca/PAS5000PASON/JobBoard/e2d2ceaa-a04e-4f8f-a0e0-0c6b5a89397c',
+  'https://recruiting2.ultipro.com/UHG1004UHG/JobBoard/0f7f8c8c-2ee2-4a6f-b191-17648d5f33e0',
+  // More SmartRecruiters / iCIMS
+  'https://careers.smartrecruiters.com/DocuSign',
+  'https://careers.smartrecruiters.com/NIKE',
+  'https://careers-intuitive.icims.com/jobs/search',
+  'https://careers-paychex.icims.com/jobs/search',
+  // More Dayforce
+  'https://jobs.dayforcehcm.com/en-US/allstate/alljobs',
+  'https://jobs.dayforcehcm.com/en-US/adayinlife/alljobs',
 ]
 
-type SerpApiOrganicResult = {
-  title?: string
-  link?: string
-  displayed_link?: string
-  snippet?: string
-}
-
-type SerpApiSearchResponse = {
-  organic_results?: SerpApiOrganicResult[]
-  error?: string
-}
-
-type SerpApiGoogleJobsApplyOption = {
-  title?: string
-  link?: string
-}
-
-type SerpApiGoogleJobsResult = {
-  title?: string
-  company_name?: string
-  location?: string
-  detected_extensions?: {
-    posted_at?: string
-    work_from_home?: boolean
-  }
-  apply_options?: SerpApiGoogleJobsApplyOption[]
-}
-
-type SerpApiGoogleJobsResponse = {
-  jobs_results?: SerpApiGoogleJobsResult[]
-  error?: string
-}
-
-const ALLOWED_LOCATION_TERMS = [
-  'united states',
-  'usa',
-  'u.s.',
-  'canada',
-  'remote',
-  'new york',
-  'michigan',
-  'toronto',
-  'chicago',
-  'dallas',
-  'atlanta',
-  'washington',
-  'virginia',
-]
-
-const BLOCKED_LOCATION_TERMS = [
-  'india',
-  'uk',
-  'united kingdom',
-  'england',
-  'germany',
-  'france',
-  'spain',
-  'netherlands',
-  'singapore',
-  'australia',
-  'philippines',
-  'mexico',
-  'brazil',
-  'ireland',
-  'poland',
-  'romania',
-  'czech republic',
-  'hungary',
-  'israel',
-  'pakistan',
-  'uae',
-  'united arab emirates',
-  'south africa',
-  'colombia',
-  'argentina',
-  'portugal',
-  'italy',
-  'sweden',
-  'denmark',
-  'norway',
-  'finland',
-  'switzerland',
-  'belgium',
-  'austria',
-  'new zealand',
-  'malaysia',
-  'indonesia',
-  'vietnam',
-  'japan',
-  'china',
-  'hong kong',
-  'sri lanka',
-  'bangladesh',
-  'egypt',
-  'morocco',
-  'nigeria',
-  'kenya',
-]
-
-function includesLocationTerm(text: string, term: string) {
-  const escapedTerm = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  const normalizedTerm = escapedTerm.replace(/\s+/g, '\\s+')
-  const termPattern = new RegExp(`(^|[^a-z0-9])${normalizedTerm}($|[^a-z0-9])`)
-
-  return termPattern.test(text)
-}
-
-function resultMatchesAllowedLocation(result: SerpApiOrganicResult) {
-  const searchableText = [
-    result.title,
-    result.snippet,
-    result.displayed_link,
-    result.link,
-  ]
-    .filter(Boolean)
-    .join(' ')
-    .toLowerCase()
-  const hasBlockedLocation = BLOCKED_LOCATION_TERMS.some((term) =>
-    includesLocationTerm(searchableText, term),
+function deduplicateUrls(urls: string[]) {
+  const uniqueUrls = new Set(
+    urls
+      .map((url) => url.trim())
+      .filter(Boolean),
   )
 
-  if (hasBlockedLocation) {
-    return false
-  }
-
-  return (
-    ALLOWED_LOCATION_TERMS.some((term) =>
-      includesLocationTerm(searchableText, term),
-    ) || hasUsStateIndicator(searchableText, includesLocationTerm)
-  )
+  return Array.from(uniqueUrls)
 }
 
-async function searchSerpApi(query: string, apiKey: string, tbs?: string) {
-  const searchParams = new URLSearchParams({
-    engine: 'google',
-    q: query,
-    location: 'United States',
-    google_domain: 'google.com',
-    gl: 'us',
-    hl: 'en',
-    api_key: apiKey,
-  })
-
-  if (tbs) {
-    searchParams.set('tbs', tbs)
-  }
-
-  const response = await fetch(`${SERPAPI_SEARCH_URL}?${searchParams}`)
-
-  if (!response.ok) {
-    const errorBody = await response.text()
-
-    throw new Error(`SerpAPI failed with status ${response.status}: ${errorBody}`)
-  }
-
-  const data = (await response.json()) as SerpApiSearchResponse
-
-  if (data.error) {
-    throw new Error(`SerpAPI returned an error: ${data.error}`)
-  }
-
-  return data.organic_results ?? []
+function buildSeedUrls(urls: string[]) {
+  return deduplicateUrls(urls).slice(0, MAX_DISCOVERED_URLS)
 }
 
 export async function searchServiceNowJobUrls() {
-  const apiKey = process.env.SERPAPI_API_KEY
-
-  if (!apiKey) {
-    console.warn(
-      'SERPAPI_API_KEY is missing; internet job discovery will return no URLs.',
-    )
-
-    return []
-  }
-
-  const urls = new Set<string>()
-
-  for (const window of SEARCH_WINDOWS) {
-    for (const query of SEARCH_DISCOVERY_QUERIES) {
-      try {
-        const organicResults = await searchSerpApi(query, apiKey, window.tbs)
-
-        for (const result of organicResults) {
-          if (result.link && resultMatchesAllowedLocation(result)) {
-            urls.add(result.link)
-          }
-
-          if (urls.size >= MAX_DISCOVERED_URLS) {
-            return Array.from(urls)
-          }
-        }
-      } catch (error) {
-        console.warn(`SerpAPI discovery query failed: ${query}`)
-        console.warn(error)
-      }
-    }
-  }
-
-  return Array.from(urls)
-}
-
-async function searchGoogleJobsApi(
-  query: string,
-  apiKey: string,
-): Promise<SerpApiGoogleJobsResult[]> {
-  const searchParams = new URLSearchParams({
-    engine: 'google_jobs',
-    q: query,
-    location: 'United States',
-    gl: 'us',
-    hl: 'en',
-    api_key: apiKey,
-  })
-  const response = await fetch(`${SERPAPI_SEARCH_URL}?${searchParams}`)
-
-  if (!response.ok) {
-    const errorBody = await response.text()
-
-    throw new Error(
-      `SerpAPI Google Jobs failed with status ${response.status}: ${errorBody}`,
-    )
-  }
-
-  const data = (await response.json()) as SerpApiGoogleJobsResponse
-
-  if (data.error) {
-    throw new Error(`SerpAPI Google Jobs returned an error: ${data.error}`)
-  }
-
-  return data.jobs_results ?? []
-}
-
-function googleJobsResultMatchesAllowedLocation(
-  result: SerpApiGoogleJobsResult,
-) {
-  const searchableText = [
-    result.location,
-    result.detected_extensions?.work_from_home ? 'remote' : null,
-  ]
-    .filter(Boolean)
-    .join(' ')
-    .toLowerCase()
-
-  if (!searchableText) return true
-
-  const hasBlockedLocation = BLOCKED_LOCATION_TERMS.some((term) =>
-    includesLocationTerm(searchableText, term),
-  )
-
-  if (hasBlockedLocation) return false
-
-  if (result.detected_extensions?.work_from_home) return true
-
-  return (
-    ALLOWED_LOCATION_TERMS.some((term) =>
-      includesLocationTerm(searchableText, term),
-    ) || hasUsStateIndicator(searchableText, includesLocationTerm)
-  )
+  return buildSeedUrls(CORE_ATS_SEED_URLS)
 }
 
 export async function searchGoogleJobsForServiceNow() {
-  const apiKey = process.env.SERPAPI_API_KEY
-
-  if (!apiKey) {
-    console.warn(
-      'SERPAPI_API_KEY is missing; Google Jobs discovery will return no URLs.',
-    )
-
-    return []
-  }
-
-  const urls = new Set<string>()
-
-  for (const query of GOOGLE_JOBS_QUERIES) {
-    try {
-      const jobResults = await searchGoogleJobsApi(query, apiKey)
-
-      for (const result of jobResults) {
-        if (!googleJobsResultMatchesAllowedLocation(result)) {
-          continue
-        }
-
-        for (const applyOption of result.apply_options ?? []) {
-          if (applyOption.link) {
-            urls.add(applyOption.link)
-          }
-        }
-
-        if (urls.size >= MAX_DISCOVERED_URLS) {
-          return Array.from(urls)
-        }
-      }
-    } catch (error) {
-      console.warn(`SerpAPI Google Jobs query failed: ${query}`)
-      console.warn(error)
-    }
-  }
-
-  return Array.from(urls)
+  return buildSeedUrls(EXTENDED_ATS_SEED_URLS)
 }

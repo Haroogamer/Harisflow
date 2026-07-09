@@ -121,7 +121,7 @@ export async function GET(request: Request) {
     searchGoogleJobsForServiceNow(),
   ])
 
-  const allDiscoveredUrls = Array.from(new Set([...siteSearchUrls, ...googleJobsUrls]))
+  const allDiscoveredUrls = getUniqueUrls([...siteSearchUrls, ...googleJobsUrls])
   const urlsToProcess = allDiscoveredUrls.slice(0, MAX_PROCESSED_SOURCES)
   const result = await intakeJobSourceUrls(urlsToProcess, {
     crawlDelayMs: SOURCE_CRAWL_DELAY_MS,
