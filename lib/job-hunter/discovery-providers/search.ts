@@ -23,7 +23,7 @@ const CORE_ATS_SEED_URLS = [
   'https://careers-fisglobal.icims.com/jobs/search',
   'https://careers-splunk.icims.com/jobs/search',
   // Dayforce
-  'https://jobs.dayforcehcm.com/en-US/okta/alljobs',
+  'https://jobs.dayforcehcm.com/en-US/mydayforce/alljobs',
   'https://jobs.dayforcehcm.com/en-US/trimble/alljobs',
   // Oracle Cloud
   'https://edel.fa.us2.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_2001/jobs',
