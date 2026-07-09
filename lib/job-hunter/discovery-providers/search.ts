@@ -160,19 +160,21 @@ export function getBalancedAtsJobUrls(options?: {
     }
   }
 
+  const limitedUrls = new Map<SupportedAtsPlatform, string[]>()
+
   for (const [platform, urls] of pooledUrls) {
-    pooledUrls.set(platform, dedupeUrls(urls).slice(0, maxPerPlatform))
+    limitedUrls.set(platform, dedupeUrls(urls).slice(0, maxPerPlatform))
   }
 
   const selectedUrls: string[] = []
   const maxRounds = Math.max(
     0,
-    ...Array.from(pooledUrls.values(), (urls) => urls.length),
+    ...Array.from(limitedUrls.values(), (urls) => urls.length),
   )
 
   for (let index = 0; index < maxRounds; index += 1) {
     for (const platform of platformOrder) {
-      const urls = pooledUrls.get(platform) ?? []
+      const urls = limitedUrls.get(platform) ?? []
       const url = urls[index]
 
       if (url) {

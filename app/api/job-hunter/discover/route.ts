@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { crawlJobsForSource } from '@/lib/job-hunter/crawlers/registry'
+import { delay } from '@/lib/job-hunter/delay'
 import {
   DISCOVERY_SOURCES,
 } from '@/lib/job-hunter/discovery-sources'
@@ -72,12 +73,6 @@ function serializeError(error: unknown) {
   } catch {
     return String(error)
   }
-}
-
-function delay(ms: number) {
-  return new Promise((resolve) => {
-    setTimeout(resolve, ms)
-  })
 }
 
 async function crawlDiscoverySource(source: (typeof DISCOVERY_SOURCES)[number]) {

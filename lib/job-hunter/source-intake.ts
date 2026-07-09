@@ -1,4 +1,5 @@
 import { crawlJobsForSource } from '@/lib/job-hunter/crawlers/registry'
+import { delay } from '@/lib/job-hunter/delay'
 import { sendDiscordNotification } from '@/lib/job-hunter/discord'
 import { explainJobMatch } from '@/lib/job-hunter/keywords'
 import {
@@ -78,12 +79,6 @@ function serializeError(error: unknown) {
 
 function isRateLimitErrorMessage(message: string) {
   return /(^|\D)429(\D|$)/.test(message)
-}
-
-function delay(ms: number) {
-  return new Promise((resolve) => {
-    setTimeout(resolve, ms)
-  })
 }
 
 function buildSourceNotes(source: JobSourceCandidate) {

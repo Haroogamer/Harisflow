@@ -3,6 +3,7 @@ import {
   crawlJobsForSource,
   isSupportedAtsPlatform,
 } from '@/lib/job-hunter/crawlers/registry'
+import { delay } from '@/lib/job-hunter/delay'
 import {
   generateJobHash,
   jobsExistByHash,
@@ -120,12 +121,6 @@ function buildErrorSummary(errors: CrawlError[]) {
   }
 
   return Array.from(summaryByKey.values())
-}
-
-function delay(ms: number) {
-  return new Promise((resolve) => {
-    setTimeout(resolve, ms)
-  })
 }
 
 async function crawlJobSource(source: JobSource): Promise<CrawledJob[]> {
