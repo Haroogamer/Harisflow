@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server'
 import {
-  getCoreAtsJobUrls,
-  getExtendedAtsJobUrls,
+  getBalancedAtsJobUrls,
+  getBroaderAtsJobUrls,
+  getPrioritizedAtsJobUrls,
 } from '@/lib/job-hunter/discovery-providers/search'
 import { intakeJobSourceUrls } from '@/lib/job-hunter/source-intake'
 import { RECENT_JOB_MAX_AGE_DAYS } from '@/lib/job-hunter/constants'
@@ -105,12 +106,16 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const coreAtsUrls = getCoreAtsJobUrls()
-  const extendedAtsUrls = getExtendedAtsJobUrls()
+  const prioritizedAtsUrls = getPrioritizedAtsJobUrls()
+  const broaderAtsUrls = getBroaderAtsJobUrls()
+  const balancedAtsUrls = getBalancedAtsJobUrls({
+    includeBroader: true,
+    maxPerPlatform: 2,
+  })
 
   const uniqueByKey = new Map<string, string>()
 
-  for (const url of [...coreAtsUrls, ...extendedAtsUrls]) {
+  for (const url of balancedAtsUrls) {
     const key = getSourceDeduplicationKey(url)
 
     if (!uniqueByKey.has(key)) {
@@ -140,10 +145,13 @@ export async function GET(request: Request) {
 
   return NextResponse.json({
     urlsFound: allDiscoveredUrls.length,
-    siteSearchUrlsFound: coreAtsUrls.length,
-    googleJobsUrlsFound: extendedAtsUrls.length,
-    coreAtsUrlsFound: coreAtsUrls.length,
-    extendedAtsUrlsFound: extendedAtsUrls.length,
+    prioritizedSeedUrlsFound: prioritizedAtsUrls.length,
+    broaderSeedUrlsFound: broaderAtsUrls.length,
+    balancedSeedUrlsFound: balancedAtsUrls.length,
+    siteSearchUrlsFound: prioritizedAtsUrls.length,
+    googleJobsUrlsFound: broaderAtsUrls.length,
+    coreAtsUrlsFound: prioritizedAtsUrls.length,
+    extendedAtsUrlsFound: broaderAtsUrls.length,
     maxProcessedSources: MAX_PROCESSED_SOURCES,
     processedSources: result.sourcesAnalyzed,
     sourcesInserted: result.sourcesInserted,

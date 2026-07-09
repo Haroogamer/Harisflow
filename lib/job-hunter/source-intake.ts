@@ -1,12 +1,4 @@
-import { crawlGreenhouseCompany } from '@/lib/job-hunter/crawlers/greenhouse'
-import { crawlWorkdayCompany } from '@/lib/job-hunter/crawlers/workday'
-import { crawlLeverCompany } from '@/lib/job-hunter/crawlers/lever'
-import { crawlAshbyCompany } from '@/lib/job-hunter/crawlers/ashby'
-import { crawlOracleCloudCompany } from '@/lib/job-hunter/crawlers/oraclecloud'
-import { crawlDayforceCompany } from '@/lib/job-hunter/crawlers/dayforce'
-import { crawlUltiproCompany } from '@/lib/job-hunter/crawlers/ultipro'
-import { crawlSmartRecruitersCompany } from '@/lib/job-hunter/crawlers/smartrecruiters'
-import { crawlIcimsCompany } from '@/lib/job-hunter/crawlers/icims'
+import { crawlJobsForSource } from '@/lib/job-hunter/crawlers/registry'
 import { sendDiscordNotification } from '@/lib/job-hunter/discord'
 import { explainJobMatch } from '@/lib/job-hunter/keywords'
 import {
@@ -22,13 +14,7 @@ import {
 import { supabaseAdmin } from '@/lib/supabase-admin'
 
 type IntakeJob = NonNullable<
-  | Awaited<ReturnType<typeof crawlWorkdayCompany>>[number]
-  | Awaited<ReturnType<typeof crawlGreenhouseCompany>>[number]
-  | Awaited<ReturnType<typeof crawlLeverCompany>>[number]
-  | Awaited<ReturnType<typeof crawlAshbyCompany>>[number]
-  | Awaited<ReturnType<typeof crawlOracleCloudCompany>>[number]
-  | Awaited<ReturnType<typeof crawlDayforceCompany>>[number]
-  | Awaited<ReturnType<typeof crawlUltiproCompany>>[number]
+  Awaited<ReturnType<typeof crawlJobsForSource>>[number]
 >
 
 export type SourceIntakeError = {
@@ -159,79 +145,14 @@ async function crawlSource(
   source: JobSourceCandidate,
   options: SourceIntakeOptions = {},
 ) {
-  const crawlOptions = { maxAgeDays: options.maxAgeDays }
-  if (source.ats_platform === 'workday') {
-    return crawlWorkdayCompany({
+  return crawlJobsForSource(
+    {
       company: source.company,
       baseUrl: source.careers_url,
-    }, crawlOptions)
-  }
-
-  if (source.ats_platform === 'greenhouse') {
-    return crawlGreenhouseCompany({
-      company: source.company,
-      baseUrl: source.careers_url,
-      ats_platform: 'greenhouse',
-    }, crawlOptions)
-  }
-
-  if (source.ats_platform === 'lever') {
-    return crawlLeverCompany({
-      company: source.company,
-      baseUrl: source.careers_url,
-      ats_platform: 'lever',
-    }, crawlOptions)
-  }
-
-  if (source.ats_platform === 'ashby') {
-    return crawlAshbyCompany({
-      company: source.company,
-      baseUrl: source.careers_url,
-      ats_platform: 'ashby',
-    }, crawlOptions)
-  }
-
-  if (source.ats_platform === 'oraclecloud') {
-    return crawlOracleCloudCompany({
-      company: source.company,
-      baseUrl: source.careers_url,
-      ats_platform: 'oraclecloud',
-    }, crawlOptions)
-  }
-
-  if (source.ats_platform === 'dayforce') {
-    return crawlDayforceCompany({
-      company: source.company,
-      baseUrl: source.careers_url,
-      ats_platform: 'dayforce',
-    }, crawlOptions)
-  }
-
-  if (source.ats_platform === 'ultipro') {
-    return crawlUltiproCompany({
-      company: source.company,
-      baseUrl: source.careers_url,
-      ats_platform: 'ultipro',
-    }, crawlOptions)
-  }
-
-  if (source.ats_platform === 'smartrecruiters') {
-    return crawlSmartRecruitersCompany({
-      company: source.company,
-      baseUrl: source.careers_url,
-      ats_platform: 'smartrecruiters',
-    }, crawlOptions)
-  }
-
-  if (source.ats_platform === 'icims') {
-    return crawlIcimsCompany({
-      company: source.company,
-      baseUrl: source.careers_url,
-      ats_platform: 'icims',
-    }, crawlOptions)
-  }
-
-  return []
+      ats_platform: source.ats_platform,
+    },
+    { maxAgeDays: options.maxAgeDays },
+  )
 }
 
 export async function intakeJobSourceUrls(

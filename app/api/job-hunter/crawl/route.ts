@@ -1,13 +1,8 @@
 import { NextResponse } from 'next/server'
-import { crawlWorkdayCompany } from '@/lib/job-hunter/crawlers/workday'
-import { crawlGreenhouseCompany } from '@/lib/job-hunter/crawlers/greenhouse'
-import { crawlLeverCompany } from '@/lib/job-hunter/crawlers/lever'
-import { crawlAshbyCompany } from '@/lib/job-hunter/crawlers/ashby'
-import { crawlOracleCloudCompany } from '@/lib/job-hunter/crawlers/oraclecloud'
-import { crawlDayforceCompany } from '@/lib/job-hunter/crawlers/dayforce'
-import { crawlUltiproCompany } from '@/lib/job-hunter/crawlers/ultipro'
-import { crawlSmartRecruitersCompany } from '@/lib/job-hunter/crawlers/smartrecruiters'
-import { crawlIcimsCompany } from '@/lib/job-hunter/crawlers/icims'
+import {
+  crawlJobsForSource,
+  isSupportedAtsPlatform,
+} from '@/lib/job-hunter/crawlers/registry'
 import {
   generateJobHash,
   jobsExistByHash,
@@ -20,7 +15,7 @@ import { sendDiscordNotification } from '@/lib/job-hunter/discord'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { RECENT_JOB_MAX_AGE_DAYS } from '@/lib/job-hunter/constants'
 
-type CrawledJob = Omit<JobHunterJob, 'id'>
+type CrawledJob = Awaited<ReturnType<typeof crawlJobsForSource>>[number]
 
 type CrawlError = { title: string; error: string }
 
@@ -68,18 +63,6 @@ const SOURCE_CRAWL_DELAY_MS = 2_000
 const DISCORD_NOTIFICATION_DELAY_MS = 750
 const ERROR_EXAMPLE_LIMIT = 3
 const MAX_AGE_DAYS = RECENT_JOB_MAX_AGE_DAYS
-const SUPPORTED_ATS_PLATFORMS = new Set([
-  'workday',
-  'greenhouse',
-  'lever',
-  'ashby',
-  'oraclecloud',
-  'dayforce',
-  'ultipro',
-  'smartrecruiters',
-  'icims',
-])
-
 function isAuthorized(request: Request) {
   const cronSecret = process.env.CRON_SECRET
   const authorization = request.headers.get('authorization')
@@ -146,61 +129,18 @@ function delay(ms: number) {
 }
 
 async function crawlJobSource(source: JobSource): Promise<CrawledJob[]> {
-  const crawlOptions = { maxAgeDays: MAX_AGE_DAYS }
-  const config = { company: source.company, baseUrl: source.careers_url }
-
-  if (source.ats_platform === 'workday') {
-    return crawlWorkdayCompany(config, crawlOptions)
+  if (!isSupportedAtsPlatform(source.ats_platform)) {
+    return []
   }
 
-  if (source.ats_platform === 'greenhouse') {
-    return crawlGreenhouseCompany({ ...config, ats_platform: 'greenhouse' }, crawlOptions)
-  }
-
-  if (source.ats_platform === 'lever') {
-    return crawlLeverCompany({ ...config, ats_platform: 'lever' }, crawlOptions)
-  }
-
-  if (source.ats_platform === 'ashby') {
-    return crawlAshbyCompany({ ...config, ats_platform: 'ashby' }, crawlOptions)
-  }
-
-  if (source.ats_platform === 'oraclecloud') {
-    return crawlOracleCloudCompany(
-      { ...config, ats_platform: 'oraclecloud' },
-      crawlOptions,
-    )
-  }
-
-  if (source.ats_platform === 'dayforce') {
-    return crawlDayforceCompany(
-      { ...config, ats_platform: 'dayforce' },
-      crawlOptions,
-    )
-  }
-
-  if (source.ats_platform === 'ultipro') {
-    return crawlUltiproCompany(
-      { ...config, ats_platform: 'ultipro' },
-      crawlOptions,
-    )
-  }
-
-  if (source.ats_platform === 'smartrecruiters') {
-    return crawlSmartRecruitersCompany(
-      { ...config, ats_platform: 'smartrecruiters' },
-      crawlOptions,
-    )
-  }
-
-  if (source.ats_platform === 'icims') {
-    return crawlIcimsCompany(
-      { ...config, ats_platform: 'icims' },
-      crawlOptions,
-    )
-  }
-
-  return []
+  return crawlJobsForSource(
+    {
+      company: source.company,
+      baseUrl: source.careers_url,
+      ats_platform: source.ats_platform,
+    },
+    { maxAgeDays: MAX_AGE_DAYS },
+  )
 }
 
 async function updateJobSource(
@@ -251,7 +191,7 @@ export async function GET(request: Request) {
   const rateLimitedSources = new Set<string>()
 
   for (const source of sources) {
-    if (!SUPPORTED_ATS_PLATFORMS.has(source.ats_platform)) {
+    if (!isSupportedAtsPlatform(source.ats_platform)) {
       skippedUnsupported += 1
       sourceResults.push({
         sourceId: source.id,

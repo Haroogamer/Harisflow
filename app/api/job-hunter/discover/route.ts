@@ -1,14 +1,7 @@
 import { NextResponse } from 'next/server'
-import { crawlGreenhouseCompany } from '@/lib/job-hunter/crawlers/greenhouse'
-import { crawlWorkdayCompany } from '@/lib/job-hunter/crawlers/workday'
-import { crawlLeverCompany } from '@/lib/job-hunter/crawlers/lever'
-import { crawlAshbyCompany } from '@/lib/job-hunter/crawlers/ashby'
-import { crawlOracleCloudCompany } from '@/lib/job-hunter/crawlers/oraclecloud'
-import { crawlDayforceCompany } from '@/lib/job-hunter/crawlers/dayforce'
-import { crawlUltiproCompany } from '@/lib/job-hunter/crawlers/ultipro'
+import { crawlJobsForSource } from '@/lib/job-hunter/crawlers/registry'
 import {
   DISCOVERY_SOURCES,
-  type DiscoverySource,
 } from '@/lib/job-hunter/discovery-sources'
 import { sendDiscordNotification } from '@/lib/job-hunter/discord'
 import { explainJobMatch } from '@/lib/job-hunter/keywords'
@@ -18,15 +11,7 @@ import {
   saveJob,
 } from '@/lib/job-hunter/job-storage'
 
-type DiscoveredJob = NonNullable<
-  | Awaited<ReturnType<typeof crawlWorkdayCompany>>[number]
-  | Awaited<ReturnType<typeof crawlGreenhouseCompany>>[number]
-  | Awaited<ReturnType<typeof crawlLeverCompany>>[number]
-  | Awaited<ReturnType<typeof crawlAshbyCompany>>[number]
-  | Awaited<ReturnType<typeof crawlOracleCloudCompany>>[number]
-  | Awaited<ReturnType<typeof crawlDayforceCompany>>[number]
-  | Awaited<ReturnType<typeof crawlUltiproCompany>>[number]
->
+type DiscoveredJob = NonNullable<Awaited<ReturnType<typeof crawlJobsForSource>>[number]>
 
 type DiscoveryError = { title: string; error: string }
 
@@ -59,6 +44,9 @@ type SourceResult = {
 }
 
 const SAMPLE_LIMIT = 10
+const MAX_DISCOVERY_SOURCES = 10
+const SOURCE_CRAWL_DELAY_MS = 2_000
+const DISCORD_NOTIFICATION_DELAY_MS = 750
 
 function isAuthorized(request: Request) {
   const cronSecret = process.env.CRON_SECRET
@@ -86,32 +74,14 @@ function serializeError(error: unknown) {
   }
 }
 
-async function crawlDiscoverySource(source: DiscoverySource) {
-  if (source.ats_platform === 'greenhouse') {
-    return crawlGreenhouseCompany(source)
-  }
+function delay(ms: number) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms)
+  })
+}
 
-  if (source.ats_platform === 'lever') {
-    return crawlLeverCompany(source)
-  }
-
-  if (source.ats_platform === 'ashby') {
-    return crawlAshbyCompany(source)
-  }
-
-  if (source.ats_platform === 'oraclecloud') {
-    return crawlOracleCloudCompany(source)
-  }
-
-  if (source.ats_platform === 'dayforce') {
-    return crawlDayforceCompany(source)
-  }
-
-  if (source.ats_platform === 'ultipro') {
-    return crawlUltiproCompany(source)
-  }
-
-  return crawlWorkdayCompany(source)
+async function crawlDiscoverySource(source: (typeof DISCOVERY_SOURCES)[number]) {
+  return crawlJobsForSource(source)
 }
 
 export async function GET(request: Request) {
@@ -126,11 +96,13 @@ export async function GET(request: Request) {
   let ignoredNonMatching = 0
   let failed = 0
   let notificationFailures = 0
+  let processedSources = 0
+  let notificationAttempts = 0
   const sourceResults: SourceResult[] = []
   const matchedSamples: MatchedSample[] = []
   const ignoredSamples: IgnoredSample[] = []
 
-  for (const source of DISCOVERY_SOURCES) {
+  for (const source of DISCOVERY_SOURCES.slice(0, MAX_DISCOVERY_SOURCES)) {
     const sourceErrors: DiscoveryError[] = []
     let sourceDiscovered = 0
     let sourceMatched = 0
@@ -141,6 +113,12 @@ export async function GET(request: Request) {
     let sourceNotificationFailures = 0
 
     try {
+      if (processedSources > 0) {
+        await delay(SOURCE_CRAWL_DELAY_MS)
+      }
+
+      processedSources += 1
+
       const jobs = await crawlDiscoverySource(source)
       const validJobs = jobs.filter(
         (job): job is DiscoveredJob => job !== null && job !== undefined,
@@ -189,6 +167,12 @@ export async function GET(request: Request) {
 
           const savedJob = await saveJob({ ...job, job_hash: jobHash })
           sourceInserted += 1
+
+          if (notificationAttempts > 0) {
+            await delay(DISCORD_NOTIFICATION_DELAY_MS)
+          }
+
+          notificationAttempts += 1
 
           const notificationResult = await sendDiscordNotification(savedJob)
 
@@ -263,6 +247,8 @@ export async function GET(request: Request) {
     ignoredNonMatching,
     failed,
     notificationFailures,
+    maxSources: MAX_DISCOVERY_SOURCES,
+    processedSources,
     sourceResults,
     matchedSamples,
     ignoredSamples,
