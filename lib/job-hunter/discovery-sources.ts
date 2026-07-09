@@ -2,7 +2,13 @@ import type { CrawlableJobSource } from '@/lib/job-hunter/crawlers/registry'
 import { getBalancedAtsJobUrls } from '@/lib/job-hunter/discovery-providers/search'
 import { analyzeJobSourceUrl } from '@/lib/job-hunter/source-analyzer'
 
+let cachedDiscoverySources: CrawlableJobSource[] | null = null
+
 function buildDiscoverySources(): CrawlableJobSource[] {
+  if (cachedDiscoverySources) {
+    return cachedDiscoverySources
+  }
+
   const discoverySources = new Map<string, CrawlableJobSource>()
 
   for (const url of getBalancedAtsJobUrls({ includeBroader: true, maxPerPlatform: 2 })) {
@@ -19,7 +25,9 @@ function buildDiscoverySources(): CrawlableJobSource[] {
     })
   }
 
-  return Array.from(discoverySources.values())
+  cachedDiscoverySources = Array.from(discoverySources.values())
+
+  return cachedDiscoverySources
 }
 
 export type DiscoverySource = CrawlableJobSource
