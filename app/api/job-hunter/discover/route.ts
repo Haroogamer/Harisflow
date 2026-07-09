@@ -108,6 +108,7 @@ export async function GET(request: Request) {
     let sourceNotificationFailures = 0
 
     try {
+      // Skip the initial delay so the first source starts immediately.
       if (processedSources > 0) {
         await delay(SOURCE_CRAWL_DELAY_MS)
       }
@@ -163,6 +164,7 @@ export async function GET(request: Request) {
           const savedJob = await saveJob({ ...job, job_hash: jobHash })
           sourceInserted += 1
 
+          // Skip the initial delay so the first notification can be sent immediately.
           if (notificationAttempts > 0) {
             await delay(DISCORD_NOTIFICATION_DELAY_MS)
           }
