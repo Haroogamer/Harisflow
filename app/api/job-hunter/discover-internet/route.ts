@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server'
 import {
+  DEFAULT_BALANCED_SEED_LIMIT_PER_PLATFORM,
   getBalancedAtsJobUrls,
-  getBroaderAtsJobUrls,
-  getPrioritizedAtsJobUrls,
 } from '@/lib/job-hunter/discovery-providers/search'
 import { intakeJobSourceUrls } from '@/lib/job-hunter/source-intake'
 import { RECENT_JOB_MAX_AGE_DAYS } from '@/lib/job-hunter/constants'
@@ -106,11 +105,9 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const prioritizedAtsUrls = getPrioritizedAtsJobUrls()
-  const broaderAtsUrls = getBroaderAtsJobUrls()
   const balancedAtsUrls = getBalancedAtsJobUrls({
     includeBroader: true,
-    maxPerPlatform: 2,
+    maxPerPlatform: DEFAULT_BALANCED_SEED_LIMIT_PER_PLATFORM,
   })
 
   const uniqueByKey = new Map<string, string>()
@@ -145,8 +142,6 @@ export async function GET(request: Request) {
 
   return NextResponse.json({
     urlsFound: allDiscoveredUrls.length,
-    prioritizedSeedUrlsFound: prioritizedAtsUrls.length,
-    broaderSeedUrlsFound: broaderAtsUrls.length,
     balancedSeedUrlsFound: balancedAtsUrls.length,
     maxProcessedSources: MAX_PROCESSED_SOURCES,
     processedSources: result.sourcesAnalyzed,

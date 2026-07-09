@@ -5,6 +5,8 @@ type AtsSeedGroup = {
   urls: string[]
 }
 
+export const DEFAULT_BALANCED_SEED_LIMIT_PER_PLATFORM = 2
+
 const PRIORITIZED_ATS_SEED_GROUPS: AtsSeedGroup[] = [
   {
     atsPlatform: 'greenhouse',
@@ -139,7 +141,10 @@ export function getBalancedAtsJobUrls(options?: {
   maxPerPlatform?: number
 }) {
   const includeBroader = options?.includeBroader ?? false
-  const maxPerPlatform = Math.max(1, options?.maxPerPlatform ?? 2)
+  const maxPerPlatform = Math.max(
+    1,
+    options?.maxPerPlatform ?? DEFAULT_BALANCED_SEED_LIMIT_PER_PLATFORM,
+  )
   const groups = includeBroader
     ? [...PRIORITIZED_ATS_SEED_GROUPS, ...BROADER_ATS_SEED_GROUPS]
     : PRIORITIZED_ATS_SEED_GROUPS

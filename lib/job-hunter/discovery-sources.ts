@@ -1,17 +1,17 @@
 import type { CrawlableJobSource } from '@/lib/job-hunter/crawlers/registry'
-import { getBalancedAtsJobUrls } from '@/lib/job-hunter/discovery-providers/search'
+import {
+  DEFAULT_BALANCED_SEED_LIMIT_PER_PLATFORM,
+  getBalancedAtsJobUrls,
+} from '@/lib/job-hunter/discovery-providers/search'
 import { analyzeJobSourceUrl } from '@/lib/job-hunter/source-analyzer'
 
-let cachedDiscoverySources: CrawlableJobSource[] | null = null
-
 function buildDiscoverySources(): CrawlableJobSource[] {
-  if (cachedDiscoverySources) {
-    return cachedDiscoverySources
-  }
-
   const discoverySources = new Map<string, CrawlableJobSource>()
 
-  for (const url of getBalancedAtsJobUrls({ includeBroader: true, maxPerPlatform: 2 })) {
+  for (const url of getBalancedAtsJobUrls({
+    includeBroader: true,
+    maxPerPlatform: DEFAULT_BALANCED_SEED_LIMIT_PER_PLATFORM,
+  })) {
     const candidate = analyzeJobSourceUrl(url)
 
     if (!candidate) {
@@ -25,9 +25,7 @@ function buildDiscoverySources(): CrawlableJobSource[] {
     })
   }
 
-  cachedDiscoverySources = Array.from(discoverySources.values())
-
-  return cachedDiscoverySources
+  return Array.from(discoverySources.values())
 }
 
 export type DiscoverySource = CrawlableJobSource
