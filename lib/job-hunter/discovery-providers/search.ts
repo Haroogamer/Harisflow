@@ -1,5 +1,3 @@
-const MAX_DISCOVERED_URLS = 80
-
 const CORE_ATS_SEED_URLS = [
   // Greenhouse
   'https://boards.greenhouse.io/servicenow',
@@ -70,7 +68,7 @@ function deduplicateUrls(urls: string[]) {
 }
 
 function buildSeedUrls(urls: string[]) {
-  return deduplicateUrls(urls).slice(0, MAX_DISCOVERED_URLS)
+  return deduplicateUrls(urls)
 }
 
 export async function searchServiceNowJobUrls() {
