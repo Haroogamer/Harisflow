@@ -105,12 +105,12 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const siteSearchUrls = getCoreAtsJobUrls()
-  const googleJobsUrls = getExtendedAtsJobUrls()
+  const coreAtsUrls = getCoreAtsJobUrls()
+  const extendedAtsUrls = getExtendedAtsJobUrls()
 
   const uniqueByKey = new Map<string, string>()
 
-  for (const url of [...siteSearchUrls, ...googleJobsUrls]) {
+  for (const url of [...coreAtsUrls, ...extendedAtsUrls]) {
     const key = getSourceDeduplicationKey(url)
 
     if (!uniqueByKey.has(key)) {
@@ -140,8 +140,10 @@ export async function GET(request: Request) {
 
   return NextResponse.json({
     urlsFound: allDiscoveredUrls.length,
-    siteSearchUrlsFound: siteSearchUrls.length,
-    googleJobsUrlsFound: googleJobsUrls.length,
+    siteSearchUrlsFound: coreAtsUrls.length,
+    googleJobsUrlsFound: extendedAtsUrls.length,
+    coreAtsUrlsFound: coreAtsUrls.length,
+    extendedAtsUrlsFound: extendedAtsUrls.length,
     maxProcessedSources: MAX_PROCESSED_SOURCES,
     processedSources: result.sourcesAnalyzed,
     sourcesInserted: result.sourcesInserted,

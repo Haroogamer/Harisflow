@@ -64,7 +64,3 @@ export function getCoreAtsJobUrls() {
 export function getExtendedAtsJobUrls() {
   return [...EXTENDED_ATS_SEED_URLS]
 }
-
-// Backward-compatible aliases for existing imports.
-export const searchServiceNowJobUrls = getCoreAtsJobUrls
-export const searchGoogleJobsForServiceNow = getExtendedAtsJobUrls
