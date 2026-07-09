@@ -57,10 +57,14 @@ const EXTENDED_ATS_SEED_URLS = [
   'https://jobs.dayforcehcm.com/en-US/adayinlife/alljobs',
 ]
 
-export async function searchServiceNowJobUrls() {
+export function getCoreAtsJobUrls() {
   return [...CORE_ATS_SEED_URLS]
 }
 
-export async function searchGoogleJobsForServiceNow() {
+export function getExtendedAtsJobUrls() {
   return [...EXTENDED_ATS_SEED_URLS]
 }
+
+// Backward-compatible aliases for existing imports.
+export const searchServiceNowJobUrls = getCoreAtsJobUrls
+export const searchGoogleJobsForServiceNow = getExtendedAtsJobUrls

@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server'
-import { searchServiceNowJobUrls, searchGoogleJobsForServiceNow } from '@/lib/job-hunter/discovery-providers/search'
+import {
+  getCoreAtsJobUrls,
+  getExtendedAtsJobUrls,
+} from '@/lib/job-hunter/discovery-providers/search'
 import { intakeJobSourceUrls } from '@/lib/job-hunter/source-intake'
 import { RECENT_JOB_MAX_AGE_DAYS } from '@/lib/job-hunter/constants'
 import {
@@ -102,10 +105,8 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const [siteSearchUrls, googleJobsUrls] = await Promise.all([
-    searchServiceNowJobUrls(),
-    searchGoogleJobsForServiceNow(),
-  ])
+  const siteSearchUrls = getCoreAtsJobUrls()
+  const googleJobsUrls = getExtendedAtsJobUrls()
 
   const uniqueByKey = new Map<string, string>()
 
