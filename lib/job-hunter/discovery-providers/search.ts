@@ -57,24 +57,10 @@ const EXTENDED_ATS_SEED_URLS = [
   'https://jobs.dayforcehcm.com/en-US/adayinlife/alljobs',
 ]
 
-function deduplicateUrls(urls: string[]) {
-  const uniqueUrls = new Set(
-    urls
-      .map((url) => url.trim())
-      .filter(Boolean),
-  )
-
-  return Array.from(uniqueUrls)
-}
-
-function buildSeedUrls(urls: string[]) {
-  return deduplicateUrls(urls)
-}
-
 export async function searchServiceNowJobUrls() {
-  return buildSeedUrls(CORE_ATS_SEED_URLS)
+  return [...CORE_ATS_SEED_URLS]
 }
 
 export async function searchGoogleJobsForServiceNow() {
-  return buildSeedUrls(EXTENDED_ATS_SEED_URLS)
+  return [...EXTENDED_ATS_SEED_URLS]
 }

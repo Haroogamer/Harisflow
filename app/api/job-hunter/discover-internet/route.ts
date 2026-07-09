@@ -97,20 +97,6 @@ function getSourceDeduplicationKey(url: string) {
   }
 }
 
-function getUniqueUrls(urls: string[]) {
-  const uniqueByKey = new Map<string, string>()
-
-  for (const url of urls) {
-    const key = getSourceDeduplicationKey(url)
-
-    if (!uniqueByKey.has(key)) {
-      uniqueByKey.set(key, url)
-    }
-  }
-
-  return Array.from(uniqueByKey.values())
-}
-
 export async function GET(request: Request) {
   if (!isAuthorized(request)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -121,7 +107,17 @@ export async function GET(request: Request) {
     searchGoogleJobsForServiceNow(),
   ])
 
-  const allDiscoveredUrls = getUniqueUrls([...siteSearchUrls, ...googleJobsUrls])
+  const uniqueByKey = new Map<string, string>()
+
+  for (const url of [...siteSearchUrls, ...googleJobsUrls]) {
+    const key = getSourceDeduplicationKey(url)
+
+    if (!uniqueByKey.has(key)) {
+      uniqueByKey.set(key, url)
+    }
+  }
+
+  const allDiscoveredUrls = Array.from(uniqueByKey.values())
   const urlsToProcess = allDiscoveredUrls.slice(0, MAX_PROCESSED_SOURCES)
   const result = await intakeJobSourceUrls(urlsToProcess, {
     crawlDelayMs: SOURCE_CRAWL_DELAY_MS,
