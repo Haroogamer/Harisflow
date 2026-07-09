@@ -15,6 +15,7 @@ import { explainJobMatch } from '@/lib/job-hunter/keywords'
 import { sendDiscordNotification } from '@/lib/job-hunter/discord'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { RECENT_JOB_MAX_AGE_DAYS } from '@/lib/job-hunter/constants'
+import { syncMatchedJobSource } from '@/lib/job-hunter/source-intake'
 
 type CrawledJob = Awaited<ReturnType<typeof crawlJobsForSource>>[number]
 
@@ -324,6 +325,15 @@ export async function GET(request: Request) {
       )
 
       for (const { job, title, job_hash } of matchedJobsWithHash) {
+        try {
+          await syncMatchedJobSource(job.job_url)
+        } catch (error) {
+          sourceErrors.push({
+            title,
+            error: `Failed to sync matched job source: ${serializeError(error)}`,
+          })
+        }
+
         if (existingHashes.has(job_hash)) {
           sourceSkipped += 1
           continue

@@ -11,6 +11,7 @@ import {
   jobExists,
   saveJob,
 } from '@/lib/job-hunter/job-storage'
+import { syncMatchedJobSource } from '@/lib/job-hunter/source-intake'
 
 type DiscoveredJob = NonNullable<Awaited<ReturnType<typeof crawlJobsForSource>>[number]>
 
@@ -153,6 +154,15 @@ export async function GET(request: Request) {
         }
 
         try {
+          try {
+            await syncMatchedJobSource(job.job_url)
+          } catch (error) {
+            sourceErrors.push({
+              title,
+              error: `Failed to sync matched job source: ${serializeError(error)}`,
+            })
+          }
+
           const jobHash = await generateJobHash(job)
           const exists = await jobExists(jobHash)
 

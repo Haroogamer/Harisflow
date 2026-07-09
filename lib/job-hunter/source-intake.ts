@@ -102,7 +102,7 @@ async function saveSourceIfNew(source: JobSourceCandidate) {
     throw lookupError
   }
 
-  if (existingSource) {
+    if (existingSource) {
     return {
       normalizedCareersUrl,
       sourceInserted: false,
@@ -133,6 +133,36 @@ async function saveSourceIfNew(source: JobSourceCandidate) {
     sourceInserted: true,
     sourceSkipped: false,
     reason: 'Inserted new source',
+  }
+}
+
+export type MatchedJobSourceSyncResult =
+  | { status: 'unsupported'; reason: string }
+  | {
+      status: 'inserted' | 'skipped'
+      careersUrl: string
+      reason: string
+    }
+
+export async function syncMatchedJobSource(
+  jobUrl?: string | null,
+): Promise<MatchedJobSourceSyncResult> {
+  if (!jobUrl) {
+    return { status: 'unsupported', reason: 'Missing job URL' }
+  }
+
+  const source = analyzeJobSourceUrl(jobUrl)
+
+  if (!source) {
+    return { status: 'unsupported', reason: 'Unsupported or invalid job URL' }
+  }
+
+  const saveResult = await saveSourceIfNew(source)
+
+  return {
+    status: saveResult.sourceInserted ? 'inserted' : 'skipped',
+    careersUrl: saveResult.normalizedCareersUrl,
+    reason: saveResult.reason,
   }
 }
 
@@ -269,6 +299,17 @@ export async function intakeJobSourceUrls(
         sourceResult.matched += 1
 
         try {
+          try {
+            await syncMatchedJobSource(job.job_url)
+          } catch (error) {
+            result.errors.push({
+              source: normalizedSource.careers_url,
+              job: title,
+              type: 'error',
+              error: `Failed to sync matched job source: ${serializeError(error)}`,
+            })
+          }
+
           const jobHash = await generateJobHash(job)
           const exists = await jobExists(jobHash)
 
