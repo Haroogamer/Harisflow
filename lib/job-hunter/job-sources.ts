@@ -12,7 +12,7 @@ export async function getEnabledJobSources(limit?: number) {
     .order('last_crawled_at', { ascending: true, nullsFirst: true })
     .order('last_job_found_at', { ascending: false, nullsFirst: false })
 
-  if (limit !== undefined) {
+  if (limit !== undefined && limit > 0) {
     query = query.limit(limit)
   }
 
