@@ -193,6 +193,10 @@ export function getBalancedAtsJobUrls(options?: {
 }
 
 const DEFAULT_INTERNET_DISCOVERY_LIMIT = 15
+const MS_PER_MINUTE = 60 * 1000
+const MS_PER_HOUR = 60 * MS_PER_MINUTE
+const MS_PER_DAY = 24 * MS_PER_HOUR
+const MS_PER_WEEK = 7 * MS_PER_DAY
 
 const INTERNET_DISCOVERY_QUERIES = [
   'ServiceNow Developer jobs United States',
@@ -244,7 +248,7 @@ function parsePostedAtToTimestamp(value: string | undefined, now: Date) {
   }
 
   const match = normalized.match(
-    /(\d+)\+?\s*(minute|hour|day|week|month|year)s?\s*ago/,
+    /(\d+)\+?\s*(minute|hour|day|week)s?\s*ago/,
   )
 
   if (!match) {
@@ -259,12 +263,10 @@ function parsePostedAtToTimestamp(value: string | undefined, now: Date) {
   }
 
   const msByUnit: Record<string, number> = {
-    minute: 60 * 1000,
-    hour: 60 * 60 * 1000,
-    day: 24 * 60 * 60 * 1000,
-    week: 7 * 24 * 60 * 60 * 1000,
-    month: 30 * 24 * 60 * 60 * 1000,
-    year: 365 * 24 * 60 * 60 * 1000,
+    minute: MS_PER_MINUTE,
+    hour: MS_PER_HOUR,
+    day: MS_PER_DAY,
+    week: MS_PER_WEEK,
   }
   const ms = msByUnit[unit]
 
@@ -332,7 +334,7 @@ export async function getLatestInternetAtsJobUrls(options?: {
     const postedAt = parsePostedAtToTimestamp(
       job.detected_extensions?.posted_at,
       now,
-    ) ?? now.getTime()
+    ) ?? 0
 
     for (const link of extractCandidateLinks(job)) {
       const candidate = analyzeJobSourceUrl(link)
