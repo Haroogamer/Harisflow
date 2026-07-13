@@ -1,14 +1,9 @@
 import { NextResponse } from 'next/server'
 import {
-  DEFAULT_BALANCED_SEED_LIMIT_PER_PLATFORM,
-  getBalancedAtsJobUrls,
+  getLatestInternetAtsJobUrls,
 } from '@/lib/job-hunter/discovery-providers/search'
 import { intakeJobSourceUrls } from '@/lib/job-hunter/source-intake'
 import { RECENT_JOB_MAX_AGE_DAYS } from '@/lib/job-hunter/constants'
-import {
-  analyzeJobSourceUrl,
-  normalizeJobSourceCareersUrl,
-} from '@/lib/job-hunter/source-analyzer'
 
 type ErrorSummaryItem = {
   type: 'rate_limited' | 'error'
@@ -84,45 +79,16 @@ function buildErrorSummary(
   return Array.from(summaryByKey.values())
 }
 
-function getSourceDeduplicationKey(url: string) {
-  try {
-    const analyzed = analyzeJobSourceUrl(url)
-
-    if (analyzed) {
-      return normalizeJobSourceCareersUrl(analyzed.careers_url)
-    }
-
-    return normalizeJobSourceCareersUrl(url)
-  } catch (error) {
-    console.warn(`Failed to derive deduplication key for URL: ${url}`)
-    console.warn(error)
-    return url
-  }
-}
-
 export async function GET(request: Request) {
   if (!isAuthorized(request)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const balancedAtsUrls = getBalancedAtsJobUrls({
-    includeBroader: true,
-    maxPerPlatform: DEFAULT_BALANCED_SEED_LIMIT_PER_PLATFORM,
+  const internetUrls = await getLatestInternetAtsJobUrls({
+    maxSources: MAX_PROCESSED_SOURCES,
   })
 
-  const uniqueByKey = new Map<string, string>()
-
-  for (const url of balancedAtsUrls) {
-    const key = getSourceDeduplicationKey(url)
-
-    if (!uniqueByKey.has(key)) {
-      uniqueByKey.set(key, url)
-    }
-  }
-
-  const allDiscoveredUrls = Array.from(uniqueByKey.values())
-  const urlsToProcess = allDiscoveredUrls.slice(0, MAX_PROCESSED_SOURCES)
-  const result = await intakeJobSourceUrls(urlsToProcess, {
+  const result = await intakeJobSourceUrls(internetUrls, {
     crawlDelayMs: SOURCE_CRAWL_DELAY_MS,
     notificationDelayMs: DISCORD_NOTIFICATION_DELAY_MS,
     maxAgeDays: MAX_AGE_DAYS,
@@ -141,8 +107,8 @@ export async function GET(request: Request) {
   }))
 
   return NextResponse.json({
-    urlsFound: allDiscoveredUrls.length,
-    balancedSeedUrlsFound: balancedAtsUrls.length,
+    urlsFound: internetUrls.length,
+    internetUrlsFound: internetUrls.length,
     maxProcessedSources: MAX_PROCESSED_SOURCES,
     processedSources: result.sourcesAnalyzed,
     sourcesInserted: result.sourcesInserted,
