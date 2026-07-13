@@ -119,8 +119,7 @@ export async function GET(request: Request) {
   }
 
   const allDiscoveredUrls = Array.from(uniqueByKey.values())
-  const urlsToProcess = allDiscoveredUrls
-  const result = await intakeJobSourceUrls(urlsToProcess, {
+  const result = await intakeJobSourceUrls(allDiscoveredUrls, {
     crawlDelayMs: SOURCE_CRAWL_DELAY_MS,
     notificationDelayMs: DISCORD_NOTIFICATION_DELAY_MS,
     maxAgeDays: MAX_AGE_DAYS,

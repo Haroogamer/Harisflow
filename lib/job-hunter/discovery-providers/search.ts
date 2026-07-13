@@ -326,13 +326,13 @@ export async function getLatestInternetAtsJobUrls(options?: {
     ),
   )
   const allJobs = queryResults.flat()
-  const latestSourceByCareersUrl = new Map<string, { url: string; postedAt: number }>()
+  const careersUrlToLatestSource = new Map<string, { url: string; postedAt: number }>()
 
   for (const job of allJobs) {
     const postedAt = parsePostedAtToTimestamp(
       job.detected_extensions?.posted_at,
       now,
-    ) ?? 0
+    ) ?? now.getTime()
 
     for (const link of extractCandidateLinks(job)) {
       const candidate = analyzeJobSourceUrl(link)
@@ -342,10 +342,10 @@ export async function getLatestInternetAtsJobUrls(options?: {
       }
 
       const careersUrl = normalizeJobSourceCareersUrl(candidate.careers_url)
-      const existing = latestSourceByCareersUrl.get(careersUrl)
+      const existing = careersUrlToLatestSource.get(careersUrl)
 
       if (!existing || postedAt > existing.postedAt) {
-        latestSourceByCareersUrl.set(careersUrl, {
+        careersUrlToLatestSource.set(careersUrl, {
           url: careersUrl,
           postedAt,
         })
@@ -353,7 +353,7 @@ export async function getLatestInternetAtsJobUrls(options?: {
     }
   }
 
-  return Array.from(latestSourceByCareersUrl.values())
+  return Array.from(careersUrlToLatestSource.values())
     .sort((a, b) => b.postedAt - a.postedAt)
     .slice(0, maxSources)
     .map((entry) => entry.url)
