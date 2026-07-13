@@ -255,7 +255,7 @@ function parsePostedAtToTimestamp(value: string | undefined, now: Date) {
     return null
   }
 
-  const amount = Number.parseInt(match[1] ?? '0', 10)
+  const amount = Number.parseInt(match[1], 10)
   const unit = match[2]
 
   if (!Number.isFinite(amount) || amount <= 0) {
@@ -328,7 +328,7 @@ export async function getLatestInternetAtsJobUrls(options?: {
     ),
   )
   const allJobs = queryResults.flat()
-  const careersUrlToLatestSource = new Map<string, { url: string; postedAt: number }>()
+  const latestSourcesByUrl = new Map<string, number>()
 
   for (const job of allJobs) {
     const postedAt = parsePostedAtToTimestamp(
@@ -354,19 +354,16 @@ export async function getLatestInternetAtsJobUrls(options?: {
       } catch {
         continue
       }
-      const existing = careersUrlToLatestSource.get(careersUrl)
+      const existing = latestSourcesByUrl.get(careersUrl)
 
-      if (!existing || postedAt > existing.postedAt) {
-        careersUrlToLatestSource.set(careersUrl, {
-          url: careersUrl,
-          postedAt,
-        })
+      if (!existing || postedAt > existing) {
+        latestSourcesByUrl.set(careersUrl, postedAt)
       }
     }
   }
 
-  return Array.from(careersUrlToLatestSource.values())
-    .sort((a, b) => b.postedAt - a.postedAt)
+  return Array.from(latestSourcesByUrl.entries())
+    .sort((a, b) => b[1] - a[1])
     .slice(0, maxSources)
-    .map((entry) => entry.url)
+    .map(([careersUrl]) => careersUrl)
 }
