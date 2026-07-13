@@ -4,10 +4,6 @@ import {
 } from '@/lib/job-hunter/discovery-providers/search'
 import { intakeJobSourceUrls } from '@/lib/job-hunter/source-intake'
 import { RECENT_JOB_MAX_AGE_DAYS } from '@/lib/job-hunter/constants'
-import {
-  analyzeJobSourceUrl,
-  normalizeJobSourceCareersUrl,
-} from '@/lib/job-hunter/source-analyzer'
 
 type ErrorSummaryItem = {
   type: 'rate_limited' | 'error'
@@ -83,22 +79,6 @@ function buildErrorSummary(
   return Array.from(summaryByKey.values())
 }
 
-function getSourceDeduplicationKey(url: string) {
-  try {
-    const analyzed = analyzeJobSourceUrl(url)
-
-    if (analyzed) {
-      return normalizeJobSourceCareersUrl(analyzed.careers_url)
-    }
-
-    return normalizeJobSourceCareersUrl(url)
-  } catch (error) {
-    console.warn(`Failed to derive deduplication key for URL: ${url}`)
-    console.warn(error)
-    return url
-  }
-}
-
 export async function GET(request: Request) {
   if (!isAuthorized(request)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -108,18 +88,7 @@ export async function GET(request: Request) {
     maxSources: MAX_PROCESSED_SOURCES,
   })
 
-  const uniqueByKey = new Map<string, string>()
-
-  for (const url of internetUrls) {
-    const key = getSourceDeduplicationKey(url)
-
-    if (!uniqueByKey.has(key)) {
-      uniqueByKey.set(key, url)
-    }
-  }
-
-  const allDiscoveredUrls = Array.from(uniqueByKey.values())
-  const result = await intakeJobSourceUrls(allDiscoveredUrls, {
+  const result = await intakeJobSourceUrls(internetUrls, {
     crawlDelayMs: SOURCE_CRAWL_DELAY_MS,
     notificationDelayMs: DISCORD_NOTIFICATION_DELAY_MS,
     maxAgeDays: MAX_AGE_DAYS,
@@ -138,7 +107,7 @@ export async function GET(request: Request) {
   }))
 
   return NextResponse.json({
-    urlsFound: allDiscoveredUrls.length,
+    urlsFound: internetUrls.length,
     internetUrlsFound: internetUrls.length,
     maxProcessedSources: MAX_PROCESSED_SOURCES,
     processedSources: result.sourcesAnalyzed,

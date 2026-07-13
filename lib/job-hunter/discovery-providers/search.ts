@@ -334,7 +334,11 @@ export async function getLatestInternetAtsJobUrls(options?: {
     const postedAt = parsePostedAtToTimestamp(
       job.detected_extensions?.posted_at,
       now,
-    ) ?? 0
+    )
+
+    if (postedAt === null) {
+      continue
+    }
 
     for (const link of extractCandidateLinks(job)) {
       const candidate = analyzeJobSourceUrl(link)
@@ -343,7 +347,13 @@ export async function getLatestInternetAtsJobUrls(options?: {
         continue
       }
 
-      const careersUrl = normalizeJobSourceCareersUrl(candidate.careers_url)
+      let careersUrl: string
+
+      try {
+        careersUrl = normalizeJobSourceCareersUrl(candidate.careers_url)
+      } catch {
+        continue
+      }
       const existing = careersUrlToLatestSource.get(careersUrl)
 
       if (!existing || postedAt > existing.postedAt) {
