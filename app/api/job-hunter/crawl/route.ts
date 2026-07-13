@@ -476,6 +476,7 @@ export async function GET(request: Request) {
     notificationsSent,
     notificationFailures,
     maxSources: sourcesToCrawl.length,
+    totalSources: sourcesToCrawl.length,
     processedSources,
     rateLimitedSources: Array.from(rateLimitedSources),
     ignoredNonMatching,

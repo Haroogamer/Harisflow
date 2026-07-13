@@ -356,7 +356,7 @@ export async function getLatestInternetAtsJobUrls(options?: {
       }
       const existing = latestSourcesByUrl.get(careersUrl)
 
-      if (!existing || postedAt > existing) {
+      if (existing === undefined || postedAt > existing) {
         latestSourcesByUrl.set(careersUrl, postedAt)
       }
     }
