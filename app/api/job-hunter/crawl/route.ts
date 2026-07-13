@@ -59,11 +59,15 @@ type ErrorSummaryItem = {
   examples: CrawlError[]
 }
 
+export const maxDuration = 300
+
 const SAMPLE_LIMIT = 10
 const SOURCE_CRAWL_DELAY_MS = 2_000
 const DISCORD_NOTIFICATION_DELAY_MS = 750
 const ERROR_EXAMPLE_LIMIT = 3
 const MAX_AGE_DAYS = RECENT_JOB_MAX_AGE_DAYS
+const MAX_SOURCES_PER_RUN = 20
+
 function isAuthorized(request: Request) {
   const cronSecret = process.env.CRON_SECRET
   const authorization = request.headers.get('authorization')
@@ -166,7 +170,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const sources = await getEnabledJobSources()
+  const sources = await getEnabledJobSources(MAX_SOURCES_PER_RUN)
   const sourcesToCrawl: JobSource[] = []
   let discovered = 0
   let inserted = 0
