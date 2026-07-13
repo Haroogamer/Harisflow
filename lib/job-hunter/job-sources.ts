@@ -1,8 +1,8 @@
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import type { JobSource } from '@/lib/job-hunter/job-types'
 
-export async function getEnabledJobSources() {
-  const { data, error } = await supabaseAdmin
+export async function getEnabledJobSources(limit?: number) {
+  let query = supabaseAdmin
     .from('job_sources')
     .select('*')
     .eq('enabled', true)
@@ -11,6 +11,12 @@ export async function getEnabledJobSources() {
     // when multiple sources have the same crawl age.
     .order('last_crawled_at', { ascending: true, nullsFirst: true })
     .order('last_job_found_at', { ascending: false, nullsFirst: false })
+
+  if (limit !== undefined) {
+    query = query.limit(limit)
+  }
+
+  const { data, error } = await query
 
   if (error) {
     throw error
