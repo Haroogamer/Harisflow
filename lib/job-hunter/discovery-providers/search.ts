@@ -1,4 +1,8 @@
 import type { SupportedAtsPlatform } from '@/lib/job-hunter/crawlers/registry'
+import {
+  analyzeJobSourceUrl,
+  normalizeJobSourceCareersUrl,
+} from '@/lib/job-hunter/source-analyzer'
 
 type AtsSeedGroup = {
   atsPlatform: SupportedAtsPlatform
@@ -186,4 +190,171 @@ export function getBalancedAtsJobUrls(options?: {
   }
 
   return dedupeUrls(selectedUrls)
+}
+
+const DEFAULT_INTERNET_DISCOVERY_LIMIT = 15
+
+const INTERNET_DISCOVERY_QUERIES = [
+  'ServiceNow Developer jobs United States',
+  'ServiceNow Architect jobs United States',
+  'ServiceNow Administrator jobs United States',
+  'ServiceNow Engineer jobs United States',
+]
+
+type SerpApiDetectedExtensions = {
+  posted_at?: string
+}
+
+type SerpApiApplyOption = {
+  link?: string
+}
+
+type SerpApiRelatedLink = {
+  link?: string
+}
+
+type SerpApiJobResult = {
+  apply_options?: SerpApiApplyOption[]
+  related_links?: SerpApiRelatedLink[]
+  share_link?: string
+  detected_extensions?: SerpApiDetectedExtensions
+}
+
+type SerpApiGoogleJobsResponse = {
+  jobs_results?: SerpApiJobResult[]
+}
+
+function parsePostedAtToTimestamp(value: string | undefined, now: Date) {
+  if (!value) {
+    return null
+  }
+
+  const normalized = value.trim().toLowerCase()
+
+  if (!normalized) {
+    return null
+  }
+
+  if (
+    normalized.includes('today') ||
+    normalized.includes('just posted') ||
+    normalized === 'new'
+  ) {
+    return now.getTime()
+  }
+
+  const match = normalized.match(
+    /(\d+)\+?\s*(minute|hour|day|week|month|year)s?\s*ago/,
+  )
+
+  if (!match) {
+    return null
+  }
+
+  const amount = Number.parseInt(match[1] ?? '0', 10)
+  const unit = match[2]
+
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return null
+  }
+
+  const msByUnit: Record<string, number> = {
+    minute: 60 * 1000,
+    hour: 60 * 60 * 1000,
+    day: 24 * 60 * 60 * 1000,
+    week: 7 * 24 * 60 * 60 * 1000,
+    month: 30 * 24 * 60 * 60 * 1000,
+    year: 365 * 24 * 60 * 60 * 1000,
+  }
+  const ms = msByUnit[unit]
+
+  if (!ms) {
+    return null
+  }
+
+  return now.getTime() - amount * ms
+}
+
+function extractCandidateLinks(job: SerpApiJobResult) {
+  const links = [
+    ...(job.apply_options?.map((option) => option.link) ?? []),
+    ...(job.related_links?.map((link) => link.link) ?? []),
+    job.share_link,
+  ]
+
+  return links.filter((link): link is string => Boolean(link))
+}
+
+async function fetchGoogleJobsResults(query: string, apiKey: string) {
+  const url = new URL('https://serpapi.com/search.json')
+
+  url.searchParams.set('engine', 'google_jobs')
+  url.searchParams.set('hl', 'en')
+  url.searchParams.set('gl', 'us')
+  url.searchParams.set('q', query)
+  url.searchParams.set('api_key', apiKey)
+
+  const response = await fetch(url.toString(), {
+    cache: 'no-store',
+  })
+
+  if (!response.ok) {
+    const body = await response.text()
+    throw new Error(
+      `SerpApi request failed with status ${response.status}: ${body}`,
+    )
+  }
+
+  const data = (await response.json()) as SerpApiGoogleJobsResponse
+  return data.jobs_results ?? []
+}
+
+export async function getLatestInternetAtsJobUrls(options?: {
+  maxSources?: number
+}) {
+  const maxSources = options?.maxSources ?? DEFAULT_INTERNET_DISCOVERY_LIMIT
+  const apiKey = process.env.SERPAPI_API_KEY?.trim()
+
+  if (!apiKey) {
+    throw new Error('Missing SERPAPI_API_KEY for internet discovery')
+  }
+
+  const now = new Date()
+  const queryResults = await Promise.all(
+    INTERNET_DISCOVERY_QUERIES.map((query) =>
+      fetchGoogleJobsResults(query, apiKey),
+    ),
+  )
+  const allJobs = queryResults.flat()
+  const latestSourceByCareersUrl = new Map<string, { url: string; postedAt: number }>()
+
+  for (const job of allJobs) {
+    const postedAt = parsePostedAtToTimestamp(
+      job.detected_extensions?.posted_at,
+      now,
+    ) ?? 0
+
+    for (const link of extractCandidateLinks(job)) {
+      const candidate = analyzeJobSourceUrl(link)
+
+      if (!candidate) {
+        continue
+      }
+
+      const careersUrl = normalizeJobSourceCareersUrl(candidate.careers_url)
+      const existing = latestSourceByCareersUrl.get(careersUrl)
+
+      if (!existing || postedAt > existing.postedAt) {
+        latestSourceByCareersUrl.set(careersUrl, {
+          url: careersUrl,
+          postedAt,
+        })
+      }
+    }
+  }
+
+  return Array.from(latestSourceByCareersUrl.values())
+    .sort((a, b) => b.postedAt - a.postedAt)
+    .slice(0, maxSources)
+    .map((entry) => entry.url)
 }

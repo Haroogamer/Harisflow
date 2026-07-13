@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
 import {
-  DEFAULT_BALANCED_SEED_LIMIT_PER_PLATFORM,
-  getBalancedAtsJobUrls,
+  getLatestInternetAtsJobUrls,
 } from '@/lib/job-hunter/discovery-providers/search'
 import { intakeJobSourceUrls } from '@/lib/job-hunter/source-intake'
 import { RECENT_JOB_MAX_AGE_DAYS } from '@/lib/job-hunter/constants'
@@ -105,14 +104,13 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const balancedAtsUrls = getBalancedAtsJobUrls({
-    includeBroader: true,
-    maxPerPlatform: DEFAULT_BALANCED_SEED_LIMIT_PER_PLATFORM,
+  const internetUrls = await getLatestInternetAtsJobUrls({
+    maxSources: MAX_PROCESSED_SOURCES,
   })
 
   const uniqueByKey = new Map<string, string>()
 
-  for (const url of balancedAtsUrls) {
+  for (const url of internetUrls) {
     const key = getSourceDeduplicationKey(url)
 
     if (!uniqueByKey.has(key)) {
@@ -121,7 +119,7 @@ export async function GET(request: Request) {
   }
 
   const allDiscoveredUrls = Array.from(uniqueByKey.values())
-  const urlsToProcess = allDiscoveredUrls.slice(0, MAX_PROCESSED_SOURCES)
+  const urlsToProcess = allDiscoveredUrls
   const result = await intakeJobSourceUrls(urlsToProcess, {
     crawlDelayMs: SOURCE_CRAWL_DELAY_MS,
     notificationDelayMs: DISCORD_NOTIFICATION_DELAY_MS,
@@ -142,7 +140,7 @@ export async function GET(request: Request) {
 
   return NextResponse.json({
     urlsFound: allDiscoveredUrls.length,
-    balancedSeedUrlsFound: balancedAtsUrls.length,
+    internetUrlsFound: internetUrls.length,
     maxProcessedSources: MAX_PROCESSED_SOURCES,
     processedSources: result.sourcesAnalyzed,
     sourcesInserted: result.sourcesInserted,
