@@ -314,13 +314,13 @@ export function analyzeJobSourceUrl(url: string) {
     }
 
     if (
-      hostname.includes('boards.greenhouse.io') ||
-      hostname.includes('job-boards.greenhouse.io')
+      hostname === 'boards.greenhouse.io' ||
+      hostname === 'job-boards.greenhouse.io'
     ) {
       return analyzeGreenhouseUrl(parsedUrl)
     }
 
-    if (hostname.includes('jobs.lever.co')) {
+    if (hostname === 'jobs.lever.co') {
       return analyzeLeverUrl(parsedUrl)
     }
 
