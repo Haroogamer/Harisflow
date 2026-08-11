@@ -84,10 +84,32 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const internetUrlsResult = await getLatestInternetAtsJobUrls({
-    maxSources: MAX_PROCESSED_SOURCES,
-  })
-  const { urls: internetUrls, diagnostics } = internetUrlsResult
+  let internetUrls: string[] = []
+  let diagnostics: Awaited<ReturnType<typeof getLatestInternetAtsJobUrls>>['diagnostics'] = {
+    serpResultsReceived: 0,
+    resultsWithUrl: 0,
+    resultsWithPostedAt: 0,
+    resultsRejectedByDate: 0,
+    resultsRejectedUnsupportedAts: 0,
+    supportedAtsUrlsFound: 0,
+    urlsReturned: 0,
+    atsCounts: {},
+    rejectedSamples: [],
+  }
+  let discoveryError: string | undefined
+
+  try {
+    const internetUrlsResult = await getLatestInternetAtsJobUrls({
+      maxSources: MAX_PROCESSED_SOURCES,
+    })
+    internetUrls = internetUrlsResult.urls
+    diagnostics = internetUrlsResult.diagnostics
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    discoveryError = message.startsWith('Missing SERPAPI_API_KEY')
+      ? 'Missing SERPAPI_API_KEY'
+      : message
+  }
 
   const result = await intakeJobSourceUrls(internetUrls, {
     crawlDelayMs: SOURCE_CRAWL_DELAY_MS,
@@ -108,6 +130,7 @@ export async function GET(request: Request) {
   }))
 
   return NextResponse.json({
+    ...(discoveryError !== undefined && { discoveryError }),
     urlsFound: internetUrls.length,
     internetUrlsFound: internetUrls.length,
     maxProcessedSources: MAX_PROCESSED_SOURCES,
