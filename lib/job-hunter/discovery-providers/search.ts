@@ -488,6 +488,7 @@ export async function getLatestInternetAtsJobUrls(options?: {
   })
   const selectedSources = sortedSources.slice(0, maxSources)
 
+  // Count ATS distribution across all supported URLs discovered before maxSources slicing.
   for (const source of sortedSources) {
     diagnostics.atsCounts[source.atsPlatform] =
       (diagnostics.atsCounts[source.atsPlatform] ?? 0) + 1
