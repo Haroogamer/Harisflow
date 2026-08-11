@@ -261,6 +261,20 @@ const AGGREGATOR_HOSTNAMES = new Set([
   'careers.google.com',
 ])
 
+// Base domains used for subdomain matching (e.g. uk.indeed.com, m.linkedin.com)
+const AGGREGATOR_BASE_DOMAINS = new Set([
+  'linkedin.com',
+  'indeed.com',
+  'builtin.com',
+  'bebee.com',
+  'glassdoor.com',
+  'ziprecruiter.com',
+  'monster.com',
+  'careerbuilder.com',
+  'simplyhired.com',
+  'dice.com',
+])
+
 function isAggregatorUrl(url: string): boolean {
   try {
     const hostname = new URL(url).hostname.toLowerCase()
@@ -268,8 +282,8 @@ function isAggregatorUrl(url: string): boolean {
       return true
     }
     // Catch regional/subdomain variants (e.g. uk.indeed.com, m.linkedin.com)
-    for (const aggregator of AGGREGATOR_HOSTNAMES) {
-      if (hostname.endsWith(`.${aggregator}`)) {
+    for (const baseDomain of AGGREGATOR_BASE_DOMAINS) {
+      if (hostname.endsWith(`.${baseDomain}`)) {
         return true
       }
     }
@@ -539,7 +553,8 @@ export async function getLatestInternetAtsJobUrls(options?: {
     }
 
     let foundSupportedAtsForResult = false
-    let resolvedFromAggregator = false
+    let firstResolvedUrl: string | null = null
+    let firstResolvedAts: string | null = null
 
     for (const link of orderedLinks) {
       const candidate = analyzeJobSourceUrl(link)
@@ -557,16 +572,8 @@ export async function getLatestInternetAtsJobUrls(options?: {
       }
 
       if (!foundSupportedAtsForResult) {
-        // First ATS link found for this result
-        if (isPrimaryAggregator && primaryLink !== null && link !== primaryLink) {
-          resolvedFromAggregator = true
-          addResolvedSample(diagnostics.resolvedSamples, {
-            title,
-            originalUrl: primaryLink,
-            resolvedUrl: careersUrl,
-            detectedAts: candidate.ats_platform,
-          })
-        }
+        firstResolvedUrl = careersUrl
+        firstResolvedAts = candidate.ats_platform
       }
 
       foundSupportedAtsForResult = true
@@ -591,9 +598,17 @@ export async function getLatestInternetAtsJobUrls(options?: {
     }
 
     if (isPrimaryAggregator) {
-      if (resolvedFromAggregator) {
+      if (foundSupportedAtsForResult) {
         diagnostics.directAtsLinksResolved += 1
-      } else if (!foundSupportedAtsForResult) {
+        if (primaryLink !== null && firstResolvedUrl !== null && firstResolvedAts !== null) {
+          addResolvedSample(diagnostics.resolvedSamples, {
+            title,
+            originalUrl: primaryLink,
+            resolvedUrl: firstResolvedUrl,
+            detectedAts: firstResolvedAts,
+          })
+        }
+      } else {
         diagnostics.unresolvedAggregatorResults += 1
       }
     }
