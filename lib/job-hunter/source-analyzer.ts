@@ -313,7 +313,10 @@ export function analyzeJobSourceUrl(url: string) {
       return analyzeWorkdayUrl(parsedUrl)
     }
 
-    if (hostname.includes('boards.greenhouse.io')) {
+    if (
+      hostname.includes('boards.greenhouse.io') ||
+      hostname.includes('job-boards.greenhouse.io')
+    ) {
       return analyzeGreenhouseUrl(parsedUrl)
     }
 

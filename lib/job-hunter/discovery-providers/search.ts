@@ -208,14 +208,19 @@ const INTERNET_DISCOVERY_QUERIES = [
 
 type SerpApiDetectedExtensions = {
   posted_at?: string
+  [key: string]: unknown
 }
 
 type SerpApiApplyOption = {
+  title?: string
   link?: string
+  [key: string]: unknown
 }
 
 type SerpApiRelatedLink = {
+  text?: string
   link?: string
+  [key: string]: unknown
 }
 
 type SerpApiJobResult = {
@@ -224,10 +229,54 @@ type SerpApiJobResult = {
   related_links?: SerpApiRelatedLink[]
   share_link?: string
   detected_extensions?: SerpApiDetectedExtensions
+  [key: string]: unknown
 }
 
 type SerpApiGoogleJobsResponse = {
   jobs_results?: SerpApiJobResult[]
+}
+
+const AGGREGATOR_HOSTNAMES = new Set([
+  'linkedin.com',
+  'www.linkedin.com',
+  'indeed.com',
+  'www.indeed.com',
+  'builtin.com',
+  'www.builtin.com',
+  'bebee.com',
+  'www.bebee.com',
+  'glassdoor.com',
+  'www.glassdoor.com',
+  'ziprecruiter.com',
+  'www.ziprecruiter.com',
+  'monster.com',
+  'www.monster.com',
+  'careerbuilder.com',
+  'www.careerbuilder.com',
+  'simplyhired.com',
+  'www.simplyhired.com',
+  'dice.com',
+  'www.dice.com',
+  'jobs.google.com',
+  'careers.google.com',
+])
+
+function isAggregatorUrl(url: string): boolean {
+  try {
+    const hostname = new URL(url).hostname.toLowerCase()
+    if (AGGREGATOR_HOSTNAMES.has(hostname)) {
+      return true
+    }
+    // Catch regional/subdomain variants (e.g. uk.indeed.com, m.linkedin.com)
+    for (const aggregator of AGGREGATOR_HOSTNAMES) {
+      if (hostname.endsWith(`.${aggregator}`)) {
+        return true
+      }
+    }
+    return false
+  } catch {
+    return false
+  }
 }
 
 function parsePostedAtToTimestamp(value: string | undefined, now: Date) {
@@ -279,14 +328,32 @@ function parsePostedAtToTimestamp(value: string | undefined, now: Date) {
   return now.getTime() - amount * ms
 }
 
-function extractCandidateLinks(job: SerpApiJobResult) {
-  const links = [
-    ...(job.apply_options?.map((option) => option.link) ?? []),
-    ...(job.related_links?.map((link) => link.link) ?? []),
-    job.share_link,
-  ]
+function extractCandidateLinks(job: SerpApiJobResult): {
+  hasApplyOptions: boolean
+  primaryLink: string | null
+  orderedLinks: string[]
+} {
+  const applyLinks = (job.apply_options?.map((o) => o.link) ?? []).filter(
+    (link): link is string => Boolean(link),
+  )
+  const relatedLinks = (job.related_links?.map((l) => l.link) ?? []).filter(
+    (link): link is string => Boolean(link),
+  )
+  const shareLinks = job.share_link ? [job.share_link] : []
 
-  return links.filter((link): link is string => Boolean(link))
+  const allLinks = [...applyLinks, ...relatedLinks, ...shareLinks]
+  const primaryLink = allLinks[0] ?? null
+
+  // Prioritize non-aggregator links so ATS detection runs on them first
+  const nonAggregatorLinks = allLinks.filter((l) => !isAggregatorUrl(l))
+  const aggregatorLinks = allLinks.filter((l) => isAggregatorUrl(l))
+  const orderedLinks = [...nonAggregatorLinks, ...aggregatorLinks]
+
+  return {
+    hasApplyOptions: applyLinks.length > 0,
+    primaryLink,
+    orderedLinks,
+  }
 }
 
 async function fetchGoogleJobsResults(query: string, apiKey: string) {
@@ -327,6 +394,7 @@ async function fetchGoogleJobsResults(query: string, apiKey: string) {
 }
 
 const MAX_REJECTED_SAMPLES = 10
+const MAX_RESOLVED_SAMPLES = 10
 const INTERNET_DISCOVERY_MAX_POST_AGE_MS = RECENT_JOB_MAX_AGE_DAYS * MS_PER_DAY
 
 type RejectedSample = {
@@ -334,6 +402,13 @@ type RejectedSample = {
   url: string
   posted_at: string | null
   rejectionReason: string
+}
+
+type ResolvedSample = {
+  title: string
+  originalUrl: string
+  resolvedUrl: string
+  detectedAts: string
 }
 
 type InternetDiscoveryDiagnostics = {
@@ -345,7 +420,12 @@ type InternetDiscoveryDiagnostics = {
   supportedAtsUrlsFound: number
   urlsReturned: number
   atsCounts: Partial<Record<SupportedAtsPlatform, number>>
+  aggregatorResults: number
+  resultsWithApplyOptions: number
+  directAtsLinksResolved: number
+  unresolvedAggregatorResults: number
   rejectedSamples: RejectedSample[]
+  resolvedSamples: ResolvedSample[]
 }
 
 type InternetDiscoverySource = {
@@ -365,6 +445,15 @@ function addRejectedSample(
 ) {
   if (rejectedSamples.length < MAX_REJECTED_SAMPLES) {
     rejectedSamples.push(sample)
+  }
+}
+
+function addResolvedSample(
+  resolvedSamples: ResolvedSample[],
+  sample: ResolvedSample,
+) {
+  if (resolvedSamples.length < MAX_RESOLVED_SAMPLES) {
+    resolvedSamples.push(sample)
   }
 }
 
@@ -396,21 +485,30 @@ export async function getLatestInternetAtsJobUrls(options?: {
     supportedAtsUrlsFound: 0,
     urlsReturned: 0,
     atsCounts: {},
+    aggregatorResults: 0,
+    resultsWithApplyOptions: 0,
+    directAtsLinksResolved: 0,
+    unresolvedAggregatorResults: 0,
     rejectedSamples: [],
+    resolvedSamples: [],
   }
 
   for (const job of allJobs) {
     const postedAtRaw = job.detected_extensions?.posted_at
-    const postedAtValue = postedAtRaw?.trim() ?? ''
-    const postedAt = parsePostedAtToTimestamp(postedAtRaw, now)
-    const links = extractCandidateLinks(job)
-    const title = job.title ?? 'Untitled job'
+    const postedAtValue = postedAtRaw != null ? String(postedAtRaw).trim() : ''
+    const postedAt = parsePostedAtToTimestamp(postedAtRaw != null ? String(postedAtRaw) : undefined, now)
+    const { hasApplyOptions, primaryLink, orderedLinks } = extractCandidateLinks(job)
+    const title = job.title != null ? String(job.title) : 'Untitled job'
 
     if (postedAtValue) {
       diagnostics.resultsWithPostedAt += 1
     }
 
-    if (links.length === 0) {
+    if (hasApplyOptions) {
+      diagnostics.resultsWithApplyOptions += 1
+    }
+
+    if (orderedLinks.length === 0) {
       addRejectedSample(diagnostics.rejectedSamples, {
         title,
         url: '',
@@ -426,16 +524,24 @@ export async function getLatestInternetAtsJobUrls(options?: {
       diagnostics.resultsRejectedByDate += 1
       addRejectedSample(diagnostics.rejectedSamples, {
         title,
-        url: links[0] ?? '',
+        url: primaryLink ?? '',
         posted_at: postedAtValue || null,
         rejectionReason: 'stale_posted_at',
       })
       continue
     }
 
-    let foundSupportedAtsForResult = false
+    const isPrimaryAggregator =
+      primaryLink !== null && isAggregatorUrl(primaryLink)
 
-    for (const link of links) {
+    if (isPrimaryAggregator) {
+      diagnostics.aggregatorResults += 1
+    }
+
+    let foundSupportedAtsForResult = false
+    let resolvedFromAggregator = false
+
+    for (const link of orderedLinks) {
       const candidate = analyzeJobSourceUrl(link)
 
       if (!candidate) {
@@ -449,6 +555,20 @@ export async function getLatestInternetAtsJobUrls(options?: {
       } catch {
         continue
       }
+
+      if (!foundSupportedAtsForResult) {
+        // First ATS link found for this result
+        if (isPrimaryAggregator && primaryLink !== null && link !== primaryLink) {
+          resolvedFromAggregator = true
+          addResolvedSample(diagnostics.resolvedSamples, {
+            title,
+            originalUrl: primaryLink,
+            resolvedUrl: careersUrl,
+            detectedAts: candidate.ats_platform,
+          })
+        }
+      }
+
       foundSupportedAtsForResult = true
       const existing = latestSourcesByUrl.get(careersUrl)
 
@@ -470,11 +590,19 @@ export async function getLatestInternetAtsJobUrls(options?: {
       }
     }
 
+    if (isPrimaryAggregator) {
+      if (resolvedFromAggregator) {
+        diagnostics.directAtsLinksResolved += 1
+      } else if (!foundSupportedAtsForResult) {
+        diagnostics.unresolvedAggregatorResults += 1
+      }
+    }
+
     if (!foundSupportedAtsForResult) {
       diagnostics.resultsRejectedUnsupportedAts += 1
       addRejectedSample(diagnostics.rejectedSamples, {
         title,
-        url: links[0] ?? '',
+        url: primaryLink ?? '',
         posted_at: postedAtValue || null,
         rejectionReason: 'unsupported_ats',
       })
