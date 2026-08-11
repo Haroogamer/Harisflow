@@ -94,7 +94,12 @@ export async function GET(request: Request) {
     supportedAtsUrlsFound: 0,
     urlsReturned: 0,
     atsCounts: {},
+    aggregatorResults: 0,
+    resultsWithApplyOptions: 0,
+    directAtsLinksResolved: 0,
+    unresolvedAggregatorResults: 0,
     rejectedSamples: [],
+    resolvedSamples: [],
   }
   let discoveryError: string | undefined
 
