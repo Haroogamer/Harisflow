@@ -3,6 +3,7 @@ import {
   analyzeJobSourceUrl,
   normalizeJobSourceCareersUrl,
 } from '@/lib/job-hunter/source-analyzer'
+import { RECENT_JOB_MAX_AGE_DAYS } from '@/lib/job-hunter/constants'
 
 type AtsSeedGroup = {
   atsPlatform: SupportedAtsPlatform
@@ -218,6 +219,7 @@ type SerpApiRelatedLink = {
 }
 
 type SerpApiJobResult = {
+  title?: string
   apply_options?: SerpApiApplyOption[]
   related_links?: SerpApiRelatedLink[]
   share_link?: string
@@ -308,12 +310,67 @@ async function fetchGoogleJobsResults(query: string, apiKey: string) {
   }
 
   const data = (await response.json()) as SerpApiGoogleJobsResponse
+  const organicResults = (data as { organic_results?: unknown[] }).organic_results
+  const jobsResults = data.jobs_results ?? []
+
+  console.info('[job-hunter] SerpAPI response shape', {
+    query,
+    organicResultsExists: Array.isArray(organicResults),
+    organicResultsLength: Array.isArray(organicResults) ? organicResults.length : 0,
+    firstResultKeys:
+      jobsResults.length > 0 && typeof jobsResults[0] === 'object'
+        ? Object.keys(jobsResults[0])
+        : [],
+  })
+
   return data.jobs_results ?? []
+}
+
+const MAX_REJECTED_SAMPLES = 10
+const INTERNET_DISCOVERY_MAX_POST_AGE_MS = RECENT_JOB_MAX_AGE_DAYS * MS_PER_DAY
+
+type RejectedSample = {
+  title: string
+  url: string
+  posted_at: string | null
+  rejectionReason: string
+}
+
+type InternetDiscoveryDiagnostics = {
+  serpResultsReceived: number
+  resultsWithUrl: number
+  resultsWithPostedAt: number
+  resultsRejectedByDate: number
+  resultsRejectedUnsupportedAts: number
+  supportedAtsUrlsFound: number
+  urlsReturned: number
+  atsCounts: Partial<Record<SupportedAtsPlatform, number>>
+  rejectedSamples: RejectedSample[]
+}
+
+type InternetDiscoverySource = {
+  url: string
+  atsPlatform: SupportedAtsPlatform
+  postedAt: number | null
+}
+
+export type InternetDiscoveryResult = {
+  urls: string[]
+  diagnostics: InternetDiscoveryDiagnostics
+}
+
+function addRejectedSample(
+  rejectedSamples: RejectedSample[],
+  sample: RejectedSample,
+) {
+  if (rejectedSamples.length < MAX_REJECTED_SAMPLES) {
+    rejectedSamples.push(sample)
+  }
 }
 
 export async function getLatestInternetAtsJobUrls(options?: {
   maxSources?: number
-}) {
+}): Promise<InternetDiscoveryResult> {
   const maxSources = options?.maxSources ?? DEFAULT_INTERNET_DISCOVERY_LIMIT
   const apiKey = process.env.SERPAPI_API_KEY?.trim()
 
@@ -328,19 +385,57 @@ export async function getLatestInternetAtsJobUrls(options?: {
     ),
   )
   const allJobs = queryResults.flat()
-  const latestSourcesByUrl = new Map<string, number>()
+  const freshnessThreshold = now.getTime() - INTERNET_DISCOVERY_MAX_POST_AGE_MS
+  const latestSourcesByUrl = new Map<string, InternetDiscoverySource>()
+  const diagnostics: InternetDiscoveryDiagnostics = {
+    serpResultsReceived: allJobs.length,
+    resultsWithUrl: 0,
+    resultsWithPostedAt: 0,
+    resultsRejectedByDate: 0,
+    resultsRejectedUnsupportedAts: 0,
+    supportedAtsUrlsFound: 0,
+    urlsReturned: 0,
+    atsCounts: {},
+    rejectedSamples: [],
+  }
 
   for (const job of allJobs) {
-    const postedAt = parsePostedAtToTimestamp(
-      job.detected_extensions?.posted_at,
-      now,
-    )
+    const postedAtRaw = job.detected_extensions?.posted_at
+    const postedAtValue = postedAtRaw?.trim() ?? ''
+    const postedAt = parsePostedAtToTimestamp(postedAtRaw, now)
+    const links = extractCandidateLinks(job)
+    const title = job.title ?? 'Untitled job'
 
-    if (postedAt === null) {
+    if (postedAtValue) {
+      diagnostics.resultsWithPostedAt += 1
+    }
+
+    if (links.length === 0) {
+      addRejectedSample(diagnostics.rejectedSamples, {
+        title,
+        url: '',
+        posted_at: postedAtValue || null,
+        rejectionReason: 'missing_url',
+      })
       continue
     }
 
-    for (const link of extractCandidateLinks(job)) {
+    diagnostics.resultsWithUrl += 1
+
+    if (postedAt !== null && postedAt < freshnessThreshold) {
+      diagnostics.resultsRejectedByDate += 1
+      addRejectedSample(diagnostics.rejectedSamples, {
+        title,
+        url: links[0] ?? '',
+        posted_at: postedAtValue || null,
+        rejectionReason: 'stale_posted_at',
+      })
+      continue
+    }
+
+    let foundSupportedAtsForResult = false
+
+    for (const link of links) {
       const candidate = analyzeJobSourceUrl(link)
 
       if (!candidate) {
@@ -354,16 +449,56 @@ export async function getLatestInternetAtsJobUrls(options?: {
       } catch {
         continue
       }
+      foundSupportedAtsForResult = true
       const existing = latestSourcesByUrl.get(careersUrl)
 
-      if (existing === undefined || postedAt > existing) {
-        latestSourcesByUrl.set(careersUrl, postedAt)
+      if (!existing) {
+        latestSourcesByUrl.set(careersUrl, {
+          url: careersUrl,
+          atsPlatform: candidate.ats_platform,
+          postedAt,
+        })
+        continue
       }
+
+      if (postedAt !== null && (existing.postedAt === null || postedAt > existing.postedAt)) {
+        latestSourcesByUrl.set(careersUrl, {
+          url: careersUrl,
+          atsPlatform: candidate.ats_platform,
+          postedAt,
+        })
+      }
+    }
+
+    if (!foundSupportedAtsForResult) {
+      diagnostics.resultsRejectedUnsupportedAts += 1
+      addRejectedSample(diagnostics.rejectedSamples, {
+        title,
+        url: links[0] ?? '',
+        posted_at: postedAtValue || null,
+        rejectionReason: 'unsupported_ats',
+      })
     }
   }
 
-  return Array.from(latestSourcesByUrl.entries())
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, maxSources)
-    .map(([careersUrl]) => careersUrl)
+  const sortedSources = Array.from(latestSourcesByUrl.values()).sort((a, b) => {
+    const aScore = a.postedAt ?? Number.NEGATIVE_INFINITY
+    const bScore = b.postedAt ?? Number.NEGATIVE_INFINITY
+    return bScore - aScore
+  })
+  const selectedSources = sortedSources.slice(0, maxSources)
+
+  // Count ATS distribution across all supported URLs discovered before maxSources slicing.
+  for (const source of sortedSources) {
+    diagnostics.atsCounts[source.atsPlatform] =
+      (diagnostics.atsCounts[source.atsPlatform] ?? 0) + 1
+  }
+
+  diagnostics.supportedAtsUrlsFound = sortedSources.length
+  diagnostics.urlsReturned = selectedSources.length
+
+  return {
+    urls: selectedSources.map((source) => source.url),
+    diagnostics,
+  }
 }
