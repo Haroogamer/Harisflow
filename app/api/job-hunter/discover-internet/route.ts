@@ -84,9 +84,10 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const internetUrls = await getLatestInternetAtsJobUrls({
+  const internetUrlsResult = await getLatestInternetAtsJobUrls({
     maxSources: MAX_PROCESSED_SOURCES,
   })
+  const { urls: internetUrls, diagnostics } = internetUrlsResult
 
   const result = await intakeJobSourceUrls(internetUrls, {
     crawlDelayMs: SOURCE_CRAWL_DELAY_MS,
@@ -121,6 +122,15 @@ export async function GET(request: Request) {
     notificationsSent: result.notificationsSent,
     notificationFailures: result.notificationFailures,
     rateLimitedSources: result.rateLimitedSources,
+    serpResultsReceived: diagnostics.serpResultsReceived,
+    resultsWithUrl: diagnostics.resultsWithUrl,
+    resultsWithPostedAt: diagnostics.resultsWithPostedAt,
+    resultsRejectedByDate: diagnostics.resultsRejectedByDate,
+    resultsRejectedUnsupportedAts: diagnostics.resultsRejectedUnsupportedAts,
+    supportedAtsUrlsFound: diagnostics.supportedAtsUrlsFound,
+    urlsReturned: diagnostics.urlsReturned,
+    atsCounts: diagnostics.atsCounts,
+    rejectedSamples: diagnostics.rejectedSamples,
     sourceResults,
     errorSummary: buildErrorSummary(result.errors),
     errors: result.errors,
