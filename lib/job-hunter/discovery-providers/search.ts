@@ -474,7 +474,6 @@ type InternetDiscoveryDiagnostics = {
   unresolvedAggregatorResults: number
   jobDetailLookups: number
   jobDetailLookupFailures: number
-  jobDetailLinksResolved: number
   rejectedSamples: RejectedSample[]
   resolvedSamples: ResolvedSample[]
 }
@@ -542,7 +541,6 @@ export async function getLatestInternetAtsJobUrls(options?: {
     unresolvedAggregatorResults: 0,
     jobDetailLookups: 0,
     jobDetailLookupFailures: 0,
-    jobDetailLinksResolved: 0,
     rejectedSamples: [],
     resolvedSamples: [],
   }
@@ -568,16 +566,18 @@ export async function getLatestInternetAtsJobUrls(options?: {
     }
 
     let allCandidateLinks = [...orderedLinks]
-    let usedJobListingDetails = false
     const shouldLookupJobListingDetails =
       jobId.length > 0 &&
       (allCandidateLinks.length === 0 ||
         allCandidateLinks.every((link) => isAggregatorUrl(link)))
 
     if (shouldLookupJobListingDetails) {
-      let listingResult = listingResultByJobId.get(jobId)
+      const hasCachedListingResult = listingResultByJobId.has(jobId)
+      let listingResult = hasCachedListingResult
+        ? listingResultByJobId.get(jobId) ?? null
+        : undefined
 
-      if (listingResult === undefined) {
+      if (!hasCachedListingResult) {
         diagnostics.jobDetailLookups += 1
 
         try {
@@ -594,10 +594,16 @@ export async function getLatestInternetAtsJobUrls(options?: {
         const detailLinks = extractCandidateLinks(listingResult).orderedLinks
 
         if (detailLinks.length > 0) {
-          allCandidateLinks = Array.from(
-            new Set([...allCandidateLinks, ...detailLinks]),
+          const nonAggregatorDetailLinks = detailLinks.filter(
+            (link) => !isAggregatorUrl(link),
           )
-          usedJobListingDetails = true
+          const prioritizedDetailLinks =
+            nonAggregatorDetailLinks.length > 0
+              ? nonAggregatorDetailLinks
+              : detailLinks
+          allCandidateLinks = Array.from(
+            new Set([...prioritizedDetailLinks, ...allCandidateLinks]),
+          )
         }
       }
     }
@@ -627,9 +633,26 @@ export async function getLatestInternetAtsJobUrls(options?: {
 
     const isPrimaryAggregator =
       primaryLink !== null && isAggregatorUrl(primaryLink)
+    const allCandidateLinksAreAggregators = allCandidateLinks.every((link) =>
+      isAggregatorUrl(link),
+    )
 
     if (isPrimaryAggregator) {
       diagnostics.aggregatorResults += 1
+    }
+
+    if (allCandidateLinksAreAggregators) {
+      diagnostics.resultsRejectedUnsupportedAts += 1
+      if (isPrimaryAggregator) {
+        diagnostics.unresolvedAggregatorResults += 1
+      }
+      addRejectedSample(diagnostics.rejectedSamples, {
+        title,
+        url: primaryLink ?? '',
+        posted_at: postedAtValue || null,
+        rejectionReason: 'unsupported_ats',
+      })
+      continue
     }
 
     let foundSupportedAtsForResult = false
@@ -683,9 +706,6 @@ export async function getLatestInternetAtsJobUrls(options?: {
     if (isPrimaryAggregator) {
       if (foundSupportedAtsForResult) {
         diagnostics.directAtsLinksResolved += 1
-        if (usedJobListingDetails) {
-          diagnostics.jobDetailLinksResolved += 1
-        }
         if (
           primaryLink !== null &&
           firstResolvedUrl !== null &&

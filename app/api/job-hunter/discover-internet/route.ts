@@ -100,7 +100,6 @@ export async function GET(request: Request) {
     unresolvedAggregatorResults: 0,
     jobDetailLookups: 0,
     jobDetailLookupFailures: 0,
-    jobDetailLinksResolved: 0,
     rejectedSamples: [],
     resolvedSamples: [],
   }
@@ -167,7 +166,6 @@ export async function GET(request: Request) {
     unresolvedAggregatorResults: diagnostics.unresolvedAggregatorResults,
     jobDetailLookups: diagnostics.jobDetailLookups,
     jobDetailLookupFailures: diagnostics.jobDetailLookupFailures,
-    jobDetailLinksResolved: diagnostics.jobDetailLinksResolved,
     rejectedSamples: diagnostics.rejectedSamples,
     resolvedSamples: diagnostics.resolvedSamples,
     sourceResults,
