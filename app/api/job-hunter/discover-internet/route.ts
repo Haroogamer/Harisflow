@@ -17,7 +17,7 @@ type ErrorSummaryItem = {
   }[]
 }
 
-const MAX_PROCESSED_SOURCES = 15
+const MAX_PROCESSED_SOURCES = 40
 const SOURCE_CRAWL_DELAY_MS = 2_000
 const DISCORD_NOTIFICATION_DELAY_MS = 750
 const ERROR_EXAMPLE_LIMIT = 3
@@ -98,6 +98,9 @@ export async function GET(request: Request) {
     resultsWithApplyOptions: 0,
     directAtsLinksResolved: 0,
     unresolvedAggregatorResults: 0,
+    jobDetailLookups: 0,
+    jobDetailLookupFailures: 0,
+    jobDetailLinksResolved: 0,
     rejectedSamples: [],
     resolvedSamples: [],
   }
@@ -158,7 +161,15 @@ export async function GET(request: Request) {
     supportedAtsUrlsFound: diagnostics.supportedAtsUrlsFound,
     urlsReturned: diagnostics.urlsReturned,
     atsCounts: diagnostics.atsCounts,
+    aggregatorResults: diagnostics.aggregatorResults,
+    resultsWithApplyOptions: diagnostics.resultsWithApplyOptions,
+    directAtsLinksResolved: diagnostics.directAtsLinksResolved,
+    unresolvedAggregatorResults: diagnostics.unresolvedAggregatorResults,
+    jobDetailLookups: diagnostics.jobDetailLookups,
+    jobDetailLookupFailures: diagnostics.jobDetailLookupFailures,
+    jobDetailLinksResolved: diagnostics.jobDetailLinksResolved,
     rejectedSamples: diagnostics.rejectedSamples,
+    resolvedSamples: diagnostics.resolvedSamples,
     sourceResults,
     errorSummary: buildErrorSummary(result.errors),
     errors: result.errors,

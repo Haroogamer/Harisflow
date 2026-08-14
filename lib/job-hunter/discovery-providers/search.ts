@@ -193,7 +193,7 @@ export function getBalancedAtsJobUrls(options?: {
   return dedupeUrls(selectedUrls)
 }
 
-const DEFAULT_INTERNET_DISCOVERY_LIMIT = 15
+const DEFAULT_INTERNET_DISCOVERY_LIMIT = 40
 const MS_PER_MINUTE = 60 * 1000
 const MS_PER_HOUR = 60 * MS_PER_MINUTE
 const MS_PER_DAY = 24 * MS_PER_HOUR
@@ -204,6 +204,14 @@ const INTERNET_DISCOVERY_QUERIES = [
   'ServiceNow Architect jobs United States',
   'ServiceNow Administrator jobs United States',
   'ServiceNow Engineer jobs United States',
+  'ServiceNow Platform Engineer jobs United States',
+  'ServiceNow Consultant jobs United States',
+  'ServiceNow Analyst jobs United States',
+  'ITSM Developer jobs United States',
+  'ITOM Engineer jobs United States',
+  'CMDB Engineer jobs United States',
+  'ServiceNow jobs remote United States',
+  'ServiceNow jobs hybrid United States',
 ]
 
 type SerpApiDetectedExtensions = {
@@ -225,6 +233,7 @@ type SerpApiRelatedLink = {
 
 type SerpApiJobResult = {
   title?: string
+  job_id?: string
   apply_options?: SerpApiApplyOption[]
   related_links?: SerpApiRelatedLink[]
   share_link?: string
@@ -407,6 +416,31 @@ async function fetchGoogleJobsResults(query: string, apiKey: string) {
   return data.jobs_results ?? []
 }
 
+async function fetchGoogleJobListingResult(jobId: string, apiKey: string) {
+  const url = new URL('https://serpapi.com/search.json')
+
+  url.searchParams.set('engine', 'google_jobs_listing')
+  url.searchParams.set('q', jobId)
+  url.searchParams.set('hl', 'en')
+  url.searchParams.set('gl', 'us')
+  url.searchParams.set('api_key', apiKey)
+
+  const response = await fetch(url.toString(), {
+    cache: 'no-store',
+  })
+
+  if (!response.ok) {
+    const body = await response.text()
+    throw new Error(
+      `SerpApi job listing request failed with status ${response.status}: ${body}`,
+    )
+  }
+
+  const data = (await response.json()) as SerpApiJobResult
+
+  return data
+}
+
 const MAX_REJECTED_SAMPLES = 10
 const MAX_RESOLVED_SAMPLES = 10
 const INTERNET_DISCOVERY_MAX_POST_AGE_MS = RECENT_JOB_MAX_AGE_DAYS * MS_PER_DAY
@@ -438,6 +472,9 @@ type InternetDiscoveryDiagnostics = {
   resultsWithApplyOptions: number
   directAtsLinksResolved: number
   unresolvedAggregatorResults: number
+  jobDetailLookups: number
+  jobDetailLookupFailures: number
+  jobDetailLinksResolved: number
   rejectedSamples: RejectedSample[]
   resolvedSamples: ResolvedSample[]
 }
@@ -503,15 +540,23 @@ export async function getLatestInternetAtsJobUrls(options?: {
     resultsWithApplyOptions: 0,
     directAtsLinksResolved: 0,
     unresolvedAggregatorResults: 0,
+    jobDetailLookups: 0,
+    jobDetailLookupFailures: 0,
+    jobDetailLinksResolved: 0,
     rejectedSamples: [],
     resolvedSamples: [],
   }
+  const listingResultByJobId = new Map<string, SerpApiJobResult | null>()
 
   for (const job of allJobs) {
     const postedAtRaw = job.detected_extensions?.posted_at
     const postedAtValue = postedAtRaw != null ? String(postedAtRaw).trim() : ''
-    const postedAt = parsePostedAtToTimestamp(postedAtRaw != null ? String(postedAtRaw) : undefined, now)
+    const postedAt = parsePostedAtToTimestamp(
+      postedAtRaw != null ? String(postedAtRaw) : undefined,
+      now,
+    )
     const { hasApplyOptions, primaryLink, orderedLinks } = extractCandidateLinks(job)
+    const jobId = typeof job.job_id === 'string' ? job.job_id.trim() : ''
     const title = job.title != null ? String(job.title) : 'Untitled job'
 
     if (postedAtValue) {
@@ -522,7 +567,42 @@ export async function getLatestInternetAtsJobUrls(options?: {
       diagnostics.resultsWithApplyOptions += 1
     }
 
-    if (orderedLinks.length === 0) {
+    let allCandidateLinks = [...orderedLinks]
+    let usedJobListingDetails = false
+    const shouldLookupJobListingDetails =
+      jobId.length > 0 &&
+      (allCandidateLinks.length === 0 ||
+        allCandidateLinks.every((link) => isAggregatorUrl(link)))
+
+    if (shouldLookupJobListingDetails) {
+      let listingResult = listingResultByJobId.get(jobId)
+
+      if (listingResult === undefined) {
+        diagnostics.jobDetailLookups += 1
+
+        try {
+          listingResult = await fetchGoogleJobListingResult(jobId, apiKey)
+          listingResultByJobId.set(jobId, listingResult)
+        } catch {
+          diagnostics.jobDetailLookupFailures += 1
+          listingResultByJobId.set(jobId, null)
+          listingResult = null
+        }
+      }
+
+      if (listingResult) {
+        const detailLinks = extractCandidateLinks(listingResult).orderedLinks
+
+        if (detailLinks.length > 0) {
+          allCandidateLinks = Array.from(
+            new Set([...allCandidateLinks, ...detailLinks]),
+          )
+          usedJobListingDetails = true
+        }
+      }
+    }
+
+    if (allCandidateLinks.length === 0) {
       addRejectedSample(diagnostics.rejectedSamples, {
         title,
         url: '',
@@ -556,7 +636,7 @@ export async function getLatestInternetAtsJobUrls(options?: {
     let firstResolvedUrl: string | null = null
     let firstResolvedAts: string | null = null
 
-    for (const link of orderedLinks) {
+    for (const link of allCandidateLinks) {
       const candidate = analyzeJobSourceUrl(link)
 
       if (!candidate) {
@@ -588,7 +668,10 @@ export async function getLatestInternetAtsJobUrls(options?: {
         continue
       }
 
-      if (postedAt !== null && (existing.postedAt === null || postedAt > existing.postedAt)) {
+      if (
+        postedAt !== null &&
+        (existing.postedAt === null || postedAt > existing.postedAt)
+      ) {
         latestSourcesByUrl.set(careersUrl, {
           url: careersUrl,
           atsPlatform: candidate.ats_platform,
@@ -600,7 +683,14 @@ export async function getLatestInternetAtsJobUrls(options?: {
     if (isPrimaryAggregator) {
       if (foundSupportedAtsForResult) {
         diagnostics.directAtsLinksResolved += 1
-        if (primaryLink !== null && firstResolvedUrl !== null && firstResolvedAts !== null) {
+        if (usedJobListingDetails) {
+          diagnostics.jobDetailLinksResolved += 1
+        }
+        if (
+          primaryLink !== null &&
+          firstResolvedUrl !== null &&
+          firstResolvedAts !== null
+        ) {
           addResolvedSample(diagnostics.resolvedSamples, {
             title,
             originalUrl: primaryLink,
