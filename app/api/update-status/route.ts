@@ -6,6 +6,10 @@ export async function POST(req: Request) {
 
   const id = formData.get('id')
 
+  if (typeof id !== 'string' || !id) {
+    return NextResponse.json({ error: 'Valid id is required' }, { status: 400 })
+  }
+
   const { error } = await supabase
     .from('submissions')
     .update({ status: 'completed' })

@@ -2,12 +2,23 @@ export const dynamic = 'force-dynamic'
 export const revalidate = 0
 import { supabase } from '@/lib/supabase'
 
+type SubmissionRow = {
+  id: string
+  name: string | null
+  email: string | null
+  request: string | null
+  summary: string | null
+  status: string | null
+}
+
 export default async function AdminPage() {
   const { data, error } = await supabase
   .from('submissions')
   .select('*')
   .order('created_at', { ascending: false })
   .throwOnError()
+
+  const submissions = (data ?? []) as SubmissionRow[]
 
   if (error) {
     return <div>Error loading data</div>
@@ -17,7 +28,7 @@ export default async function AdminPage() {
     <div style={{ padding: '20px' }}>
       <h1>Submissions</h1>
 
-      {data?.map((item) => (
+      {submissions.map((item) => (
         <div
           key={item.id}
           style={{
