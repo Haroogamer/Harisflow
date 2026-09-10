@@ -1,5 +1,6 @@
 # Docs for the Azure Web Apps Deploy action: https://github.com/Azure/webapps-deploy
 # More GitHub Actions for Azure: https://github.com/Azure/actions
+# .github/workflows/main_securenow-harisflow-dev.yml
 
 name: Build and deploy Node.js app to Azure Web App - securenow-harisflow-dev
 
@@ -12,6 +13,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+
     permissions:
       contents: read
 
@@ -34,6 +36,18 @@ jobs:
 
       - name: Build Next.js application
         run: npm run build
+
+      - name: Verify standalone build
+        run: |
+          echo "Contents of .next/standalone:"
+          ls -la .next/standalone
+
+          if [ ! -f ".next/standalone/server.js" ]; then
+            echo "ERROR: .next/standalone/server.js was not generated."
+            exit 1
+          fi
+
+          echo "Standalone server.js exists."
 
       - name: Prepare standalone deployment
         run: |
@@ -66,6 +80,18 @@ jobs:
           name: node-app
           path: deploy-package
 
+      - name: Verify deployment artifact
+        run: |
+          echo "Contents of deployment package:"
+          ls -la deploy-package
+
+          if [ ! -f "deploy-package/server.js" ]; then
+            echo "ERROR: deploy-package/server.js is missing."
+            exit 1
+          fi
+
+          echo "Deployment package contains server.js."
+
       - name: Login to Azure
         uses: azure/login@v2
         with:
@@ -76,7 +102,6 @@ jobs:
       - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v3
         with:
-          app-name: "securenow-harisflow-dev"
-          slot-name: "Production"
+          app-name: securenow-harisflow-dev
+          slot-name: Production
           package: deploy-package
-          
