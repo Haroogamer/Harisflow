@@ -8,6 +8,7 @@ import json
 import os
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -62,8 +63,17 @@ def main():
     if args.limit:
         companies = companies[:args.limit]
 
-    for entry in companies:
+    def _crawl(entry):
         jobs, err = crawl_company(entry)
+        return entry, jobs, err
+
+    # Crawl boards in parallel: ~2249 sequential requests take ~45 min,
+    # uncomfortably close to the cron's 60-min kill limit. DB writes and
+    # notifications stay serial afterwards so SQLite access stays single-threaded.
+    with ThreadPoolExecutor(max_workers=12) as ex:
+        crawled = list(ex.map(_crawl, companies))
+
+    for entry, jobs, err in crawled:
         stats['companies'] += 1
         if err:
             stats['errors'] += 1
