@@ -7,27 +7,32 @@ gradient orbs, pill controls.
 ## Structure
 
 ```
-app/
-  page.tsx        Home page — composition only. No copy, no styling decisions.
-  jobs/page.tsx   /jobs landing page — the job-alerts funnel (QR → Discord).
-  glass.css       The Liquid Glass design system (frosted surfaces, keyframes).
-                  Import once in the root layout:  import "./glass.css";
-public/
-  qr-discord.png  QR code for the Discord invite. Regenerate if the invite
-                  link (lib/site.ts → discordInvite) ever changes.
-components/
-  Navbar.tsx, Hero.tsx, CapabilityTicker.tsx,
-  Services.tsx, Work.tsx, Process.tsx,
-  Contact.tsx, Footer.tsx, AmbientBackground.tsx,
-  JobsHero.tsx, JobsHowItWorks.tsx, JobsIncluded.tsx, JobsJoin.tsx
-  ui/
-    GlassCard.tsx       Frosted surface wrapper (variants: default | strong)
-    SectionHeading.tsx  Eyebrow + title block shared by all sections
-    icons.tsx           SVG line icons, keyed by IconName
-lib/
-  site.ts         Brand, contact email, Discord invite, nav links — edit here to rebrand
-  content.ts      ALL page copy — services, portfolio, process, hero text, /jobs copy
-next.config.ts    Security headers (see below)
+site/                     Standalone Next.js app (this folder)
+  package.json            Dependencies (Next 15, React 19, Tailwind v4)
+  tsconfig.json           TypeScript config
+  next.config.ts          Security headers (see below)
+  README.md               This file
+  app/
+    layout.tsx            Root layout — imports globals.css + glass.css, sets metadata
+    globals.css           Tailwind v4 entry point
+    glass.css             The Liquid Glass design system (frosted surfaces, keyframes)
+    page.tsx              Home page — composition only. No copy, no styling decisions.
+    jobs/page.tsx         /jobs landing page — the job-alerts funnel (QR → Discord)
+  public/
+    qr-discord.png        QR code for the Discord invite. Regenerate if the invite
+                          link (lib/site.ts → discordInvite) ever changes.
+  components/
+    Navbar.tsx, Hero.tsx, CapabilityTicker.tsx,
+    Services.tsx, Work.tsx, Process.tsx,
+    Contact.tsx, Footer.tsx, AmbientBackground.tsx,
+    JobsHero.tsx, JobsHowItWorks.tsx, JobsIncluded.tsx, JobsJoin.tsx
+    ui/
+      GlassCard.tsx       Frosted surface wrapper (variants: default | strong)
+      SectionHeading.tsx  Eyebrow + title block shared by all sections
+      icons.tsx           SVG line icons, keyed by IconName
+  lib/
+    site.ts               Brand, contact email, Discord invite, nav links — edit here to rebrand
+    content.ts            ALL page copy — services, portfolio, process, hero text, /jobs copy
 ```
 
 ## The rule
@@ -39,18 +44,25 @@ next.config.ts    Security headers (see below)
 - **`app/page.tsx` is a table of contents.** If you can't tell what the page
   contains from reading it, something is in the wrong file.
 
-## Integrating into the existing project
+## Run locally
 
-The live site is a standard Create Next App project. To deploy this:
+```bash
+cd site
+npm install
+npm run dev
+```
 
-1. Copy `app/`, `components/`, `lib/` into the project (replace `app/page.tsx`).
-2. In the root layout (`app/layout.tsx`), add next to the globals.css import:
-   `import "./glass.css";`
-3. Set the metadata title/description in `app/layout.tsx`:
-   `title: "securenowconsulting — ServiceNow development, integrations & reporting"`
-4. Merge `next.config.ts` — if one already exists, copy the `securityHeaders`
-   array and `headers()` into it instead of replacing the file.
-5. Push. The Azure pipeline redeploys.
+Open `http://localhost:3000` — and `http://localhost:3000/jobs` for the
+job-alerts page.
+
+## Deploy
+
+`site/` is a standard Next.js app. Point Azure's Deployment Center at this
+repo and set the app location to `site/` — `npm run build` is verified
+working (both routes prerender as static).
+
+Branch workflow: adhoc changes → `dev` → PR into `QA` for review →
+`QA` → `main` for the production deploy.
 
 ## Security notes
 
