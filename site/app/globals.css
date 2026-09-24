@@ -1,0 +1,5 @@
+/**
+ * globals.css — Tailwind v4 entry point.
+ * Custom design tokens live in glass.css (imported in app/layout.tsx).
+ */
+@import "tailwindcss";
