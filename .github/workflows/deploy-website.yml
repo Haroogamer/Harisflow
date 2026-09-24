@@ -1,0 +1,66 @@
+name: Deploy website to Azure
+
+# Deploys the Next.js site in site/ to the Azure App Service.
+# Only runs on main -- changes ride the normal dev -> QA -> main promotion.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'site/**'
+      - '.github/workflows/deploy-website.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        working-directory: site
+        run: npm install
+
+      - name: Build
+        working-directory: site
+        run: npm run build
+
+      - name: Upload site artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: site
+          path: site
+          retention-days: 1
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Download site artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: site
+
+      - name: Log in to Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_B8D80EC5734D444988C82149AAAB846C }}
+          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_1AA27594A24943248A4C65FA454AC1F1 }}
+          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_A089FF7A57F246A09F095D769BED2F6C }}
+
+      - name: Ensure startup command
+        run: az webapp config set --name securenow-harisflow-dev --resource-group rg-securenow-dev --startup-file "npm start"
+
+      - name: Deploy to App Service
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: securenow-harisflow-dev
+          package: .
