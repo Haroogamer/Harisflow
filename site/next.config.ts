@@ -35,7 +35,7 @@ const securityHeaders = [
       "style-src 'self' 'unsafe-inline'", // Tailwind + glass.css inline keyframes
       "img-src 'self' data:",
       "font-src 'self'",
-      "script-src 'self'",
+      "script-src 'self' 'unsafe-inline'",
       "connect-src 'self'",
       "frame-ancestors 'none'",
       "base-uri 'self'",
