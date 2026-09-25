@@ -32,6 +32,7 @@ STRONG_TERMS = [
 ROLE_TERMS = [
     'developer', 'architect', 'engineer', 'administrator', 'admin',
     'consultant', 'analyst', 'manager', 'lead', 'specialist',
+    'principal', 'staff', 'solutions',
 ]
 
 # Title words that ALWAYS disqualify - sales, marketing, HR, junior grind, etc.
@@ -132,6 +133,31 @@ _CLEARANCE_RE = _wordlist(CLEARANCE_TERMS)
 def _has_strong_term(text):
     return bool(_STRONG_RE.search(text or ''))
 
+
+
+# Seniority levels for ranking (higher = more money, more ownership)
+SENIORITY_RANK = {
+    'principal': 5,
+    'staff': 4,
+    'senior': 3,
+    'lead': 3,
+    'architect': 4,
+    'consultant': 3,
+    'manager': 3,
+    'developer': 2,
+    'engineer': 2,
+    'administrator': 2,
+    'analyst': 2,
+    'associate': 1,
+    'junior': 1,
+}
+
+def seniority_score(title):
+    """Score a title by seniority (for ranking, not filtering)."""
+    if not title:
+        return 0
+    low = title.lower()
+    return max((rank for term, rank in SENIORITY_RANK.items() if term in low), default=0)
 
 def title_might_match(title):
     """Title must be an actual ServiceNow role. Generic titles like
