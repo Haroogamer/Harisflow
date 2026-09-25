@@ -159,17 +159,17 @@ def is_government_job(job):
 def description_matches(title, description):
     """Genuinely about ServiceNow: a strong term plus real ServiceNow work.
 
-    The strong term must appear at least twice across title + description —
-    a single passing mention ("we partnered with ServiceNow") isn't enough.
+    The strong term must appear at least once across title + description.
+    Loosened 2026-09-25 to increase volume (was >=2).
     """
     title = title or ''
     description = description or ''
     text = f'{title} {description[:1500]}'
-    if len(_STRONG_RE.findall(text)) < 2:
+    if len(_STRONG_RE.findall(text)) < 1:
         return False
     low = text.lower()
     actions = sum(1 for t in ACTION_TERMS if t in low)
-    return actions >= 2
+    return actions >= 1
 
 
 def job_matches(job):
