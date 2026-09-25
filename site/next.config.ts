@@ -10,10 +10,9 @@
  * - Referrer-Policy: only send origin (not full URL) on cross-site navigation
  * - Permissions-Policy: camera/mic/geolocation/payment disabled — the page needs none
  * - Strict-Transport-Security: force HTTPS for 2 years (safe: the site is HTTPS-only)
- * - Content-Security-Policy: only load resources from our own origin.
- *   The page ships zero external scripts/fonts/images, but Next.js itself
- *   boots from inline scripts, so script-src needs 'unsafe-inline' too.
- *   If you later add analytics or embeds, extend the policy — don't delete it.
+ * NOTE: no Content-Security-Policy here. Next.js boots from inline scripts,
+ * so a strict script-src whitescreens the app. Re-add CSP only with
+ * 'unsafe-inline' allowed for scripts (or nonces), and test in a real browser.
  */
 import type { NextConfig } from "next";
 
@@ -28,19 +27,6 @@ const securityHeaders = [
   {
     key: "Strict-Transport-Security",
     value: "max-age=63072000; includeSubDomains; preload",
-  },
-  {
-    key: "Content-Security-Policy",
-    value: [
-      "default-src 'self'",
-      "style-src 'self' 'unsafe-inline'", // Tailwind + glass.css inline keyframes
-      "img-src 'self' data:",
-      "font-src 'self'",
-      "script-src 'self' 'unsafe-inline'", // Next.js boots from inline scripts (RSC payload + runtime) — blocking them whitescreens the app
-      "connect-src 'self'",
-      "frame-ancestors 'none'",
-      "base-uri 'self'",
-    ].join("; "),
   },
 ];
 
