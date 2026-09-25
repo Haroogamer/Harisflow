@@ -31,7 +31,18 @@ STRONG_TERMS = [
 # Role words that only count when a STRONG_TERM is also present.
 ROLE_TERMS = [
     'developer', 'architect', 'engineer', 'administrator', 'admin',
-    'consultant', 'analyst', 'manager', 'lead',
+    'consultant', 'analyst', 'manager', 'lead', 'specialist',
+]
+
+# Title words that ALWAYS disqualify - sales, marketing, HR, etc.
+# User is a ServiceNow developer, not a salesperson.
+TITLE_EXCLUSIONS = [
+    'sales', 'territory', 'account executive', 'business development',
+    'marketing', 'abm', 'demand gen',
+    'hr ', 'human resources', 'benefits', 'people operations', 'talent acquisition', 'recruiter',
+    'customer success', 'customer trust',
+    'alliances', 'partnerships', 'channel ',
+    'product manager', 'product marketing',
 ]
 
 # Description must show real ServiceNow work (>=2 of these).
@@ -119,10 +130,15 @@ def _has_strong_term(text):
 
 
 def title_might_match(title):
-    """Cheap pre-filter on the title before we spend time on the description."""
+    """Cheap pre-filter on the title before we spend time on the description.
+    Excludes sales/marketing/HR junk even if ServiceNow is mentioned.
+    """
     if not title:
         return True
     low = title.lower()
+    # Kill bullshit roles first - sales, marketing, HR, etc.
+    if any(x in low for x in TITLE_EXCLUSIONS):
+        return False
     if _has_strong_term(title):
         return True
     return any(t in low for t in ROLE_TERMS)
