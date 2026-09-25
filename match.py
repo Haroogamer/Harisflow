@@ -34,15 +34,19 @@ ROLE_TERMS = [
     'consultant', 'analyst', 'manager', 'lead', 'specialist',
 ]
 
-# Title words that ALWAYS disqualify - sales, marketing, HR, etc.
-# User is a ServiceNow developer, not a salesperson.
+# Title words that ALWAYS disqualify - sales, marketing, HR, junior grind, etc.
+# User is a senior ServiceNow dev trying to make money, not slave around.
 TITLE_EXCLUSIONS = [
+    # Sales/marketing/HR junk
     'sales', 'territory', 'account executive', 'business development',
     'marketing', 'abm', 'demand gen',
     'hr ', 'human resources', 'benefits', 'people operations', 'talent acquisition', 'recruiter',
     'customer success', 'customer trust',
     'alliances', 'partnerships', 'channel ',
     'product manager', 'product marketing',
+    # Junior/low-pay grind - user wants senior money
+    'associate', 'junior', 'jr ', 'entry level', 'entry-level', 'intern',
+    'qa ', 'qa analyst', 'tester', 'test engineer',
 ]
 
 # Description must show real ServiceNow work (>=2 of these).
