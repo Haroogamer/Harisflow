@@ -81,10 +81,43 @@ def crawl_ashby(company, org_slug):
     return jobs
 
 
+
+def crawl_workday(company, board_spec):
+    """Workday CXS API — POST to /wday/cxs/<tenant>/<board>/jobs. Free, no key."""
+    domain, board = board_spec.split('|', 1)
+    tenant = domain.split('.')[0]
+    url = f'https://{domain}/wday/cxs/{tenant}/{board}/jobs'
+    headers = {**UA, 'Content-Type': 'application/json', 'Accept': 'application/json'}
+    jobs, offset = [], 0
+    while True:
+        payload = {'searchText': '', 'appliedFacets': {}, 'limit': 50, 'offset': offset}
+        r = requests.post(url, headers=headers, json=payload, timeout=TIMEOUT)
+        r.raise_for_status()
+        data = r.json()
+        postings = data.get('jobPostings', [])
+        if not postings:
+            break
+        for j in postings:
+            bullets = ' '.join(j.get('bulletFields', []))
+            jobs.append({
+                'company': company, 'platform': 'workday',
+                'title': j.get('title', ''), 'location': bullets or 'Not specified',
+                'url': f'https://{domain}/en-US/{board}' + j.get('externalPath', ''),
+                'date_posted': j.get('postedOn') or j.get('startDate'),
+                'description': _strip_html(bullets),
+            })
+        offset += len(postings)
+        if offset >= data.get('total', 0):
+            break
+        time.sleep(0.5)
+    return jobs
+
+
 CRAWLERS = {
     'greenhouse': crawl_greenhouse,
     'lever': crawl_lever,
     'ashby': crawl_ashby,
+    'workday': crawl_workday,
 }
 
 
