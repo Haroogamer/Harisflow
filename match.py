@@ -160,7 +160,7 @@ def description_matches(title, description):
     """Genuinely about ServiceNow: a strong term plus real ServiceNow work.
 
     The strong term must appear at least once across title + description.
-    Loosened 2026-09-25 to increase volume (was >=2).
+    Tuned 2026-09-25: strong>=1 for volume, actions>=2 for quality (junk titles like 'Marketing Manager' filtered).
     """
     title = title or ''
     description = description or ''
@@ -169,7 +169,7 @@ def description_matches(title, description):
         return False
     low = text.lower()
     actions = sum(1 for t in ACTION_TERMS if t in low)
-    return actions >= 1
+    return actions >= 2
 
 
 def job_matches(job):
