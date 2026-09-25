@@ -11,7 +11,8 @@
  * - Permissions-Policy: camera/mic/geolocation/payment disabled — the page needs none
  * - Strict-Transport-Security: force HTTPS for 2 years (safe: the site is HTTPS-only)
  * - Content-Security-Policy: only load resources from our own origin.
- *   The page ships zero external scripts/fonts/images, so 'self' is enough.
+ *   The page ships zero external scripts/fonts/images, but Next.js itself
+ *   boots from inline scripts, so script-src needs 'unsafe-inline' too.
  *   If you later add analytics or embeds, extend the policy — don't delete it.
  */
 import type { NextConfig } from "next";
@@ -35,7 +36,7 @@ const securityHeaders = [
       "style-src 'self' 'unsafe-inline'", // Tailwind + glass.css inline keyframes
       "img-src 'self' data:",
       "font-src 'self'",
-      "script-src 'self'",
+      "script-src 'self' 'unsafe-inline'", // Next.js boots from inline scripts (RSC payload + runtime) — blocking them whitescreens the app
       "connect-src 'self'",
       "frame-ancestors 'none'",
       "base-uri 'self'",
