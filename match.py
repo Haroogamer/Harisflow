@@ -130,18 +130,19 @@ def _has_strong_term(text):
 
 
 def title_might_match(title):
-    """Cheap pre-filter on the title before we spend time on the description.
-    Excludes sales/marketing/HR junk even if ServiceNow is mentioned.
+    """Title must be an actual ServiceNow role. Generic titles like
+    "Jira Administrator" or "Marketing Manager" are rejected even if the
+    description mentions ServiceNow in passing.
     """
     if not title:
-        return True
+        return False
     low = title.lower()
     # Kill bullshit roles first - sales, marketing, HR, etc.
     if any(x in low for x in TITLE_EXCLUSIONS):
         return False
-    if _has_strong_term(title):
-        return True
-    return any(t in low for t in ROLE_TERMS)
+    # Title MUST contain a ServiceNow term - no exceptions.
+    # This kills "random ass jobs" that just mention ServiceNow in the description.
+    return _has_strong_term(title)
 
 
 def location_region(location, title=''):
