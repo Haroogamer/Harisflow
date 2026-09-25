@@ -31,7 +31,7 @@ STRONG_TERMS = [
 # Role words that only count when a STRONG_TERM is also present.
 ROLE_TERMS = [
     'developer', 'architect', 'engineer', 'administrator', 'admin',
-    'consultant', 'analyst',
+    'consultant', 'analyst', 'manager', 'lead',
 ]
 
 # Description must show real ServiceNow work (>=2 of these).
