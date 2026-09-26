@@ -82,34 +82,72 @@ def crawl_ashby(company, org_slug):
 
 
 
+def _workday_post_with_retry(url, headers, payload, tries=3):
+    """POST with backoff — Workday throttles aggressive clients with 400/429."""
+    import random
+    for i in range(tries):
+        r = requests.post(url, headers=headers, json=payload, timeout=TIMEOUT)
+        if r.status_code in (400, 429) and i < tries - 1:
+            time.sleep(4 * (i + 1) + random.uniform(0, 2))
+            continue
+        r.raise_for_status()
+        return r.json()
+    return {}
+
+
 def crawl_workday(company, board_spec):
-    """Workday CXS API — POST to /wday/cxs/<tenant>/<board>/jobs. Free, no key."""
+    """Workday CXS API — POST to /wday/cxs/<tenant>/<board>/jobs. Free, no key.
+
+    The listing gives title/location only, so for titles that look like
+    plausible matches we fetch the detail endpoint for the full description.
+    """
+    from match import title_might_match
+
     domain, board = board_spec.split('|', 1)
     tenant = domain.split('.')[0]
-    url = f'https://{domain}/wday/cxs/{tenant}/{board}/jobs'
+    base = f'https://{domain}/wday/cxs/{tenant}/{board}'
     headers = {**UA, 'Content-Type': 'application/json', 'Accept': 'application/json'}
     jobs, offset = [], 0
     while True:
         payload = {'searchText': '', 'appliedFacets': {}, 'limit': 50, 'offset': offset}
-        r = requests.post(url, headers=headers, json=payload, timeout=TIMEOUT)
-        r.raise_for_status()
-        data = r.json()
+        data = _workday_post_with_retry(f'{base}/jobs', headers, payload)
         postings = data.get('jobPostings', [])
         if not postings:
             break
         for j in postings:
-            bullets = ' '.join(j.get('bulletFields', []))
+            title = j.get('title', '')
+            ext_path = (j.get('externalPath') or '').lstrip('/')
+            url = f'https://{domain}/en-US/{board}/' + ext_path
+            location = j.get('locationsText') or 'Not specified'
+            description = ''
+            date_posted = j.get('postedOn') or j.get('startDate')
+            # Only spend a detail request on titles that could plausibly match.
+            if title_might_match(title) and ext_path:
+                try:
+                    dr = requests.get(
+                        f'{base}/{ext_path}',
+                        headers={**UA, 'Accept': 'application/json'},
+                        timeout=TIMEOUT,
+                    )
+                    dr.raise_for_status()
+                    info = dr.json().get('jobPostingInfo', {})
+                    description = _strip_html(info.get('jobDescription') or '')
+                    location = info.get('location') or location
+                    date_posted = info.get('postedOn') or date_posted
+                except Exception:
+                    pass  # fall back to listing-level data
+                time.sleep(0.5)
             jobs.append({
                 'company': company, 'platform': 'workday',
-                'title': j.get('title', ''), 'location': bullets or 'Not specified',
-                'url': f'https://{domain}/en-US/{board}' + j.get('externalPath', ''),
-                'date_posted': j.get('postedOn') or j.get('startDate'),
-                'description': _strip_html(bullets),
+                'title': title, 'location': location,
+                'url': url,
+                'date_posted': date_posted,
+                'description': description,
             })
         offset += len(postings)
         if offset >= data.get('total', 0):
             break
-        time.sleep(0.5)
+        time.sleep(1.0)
     return jobs
 
 
